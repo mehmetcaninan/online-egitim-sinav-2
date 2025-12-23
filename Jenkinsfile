@@ -42,17 +42,19 @@ pipeline {
                 // Jenkins agent'ında docker/docker-compose yoksa pipeline'ı kırmadan sadece uyarı ver
                 sh '''
 if command -v docker-compose >/dev/null 2>&1; then
-  echo "[Docker Stage] docker-compose bulundu, container'lar başlatılıyor..."
+  echo "[Docker Stage] docker-compose (standalone) bulundu, container'lar başlatılıyor..."
   docker-compose down -v || true
   docker-compose up -d --build app db
   docker ps
-elif command -v docker >/dev/null 2>&1; then
+elif command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   echo "[Docker Stage] docker compose (v2) bulundu, container'lar başlatılıyor..."
   docker compose down -v || true
   docker compose up -d --build app db
   docker ps
 else
-  echo "[Docker Stage] UYARI: Jenkins agent'ında docker/docker-compose bulunamadı."
+  echo "[Docker Stage] UYARI: Jenkins agent'ında docker-compose veya docker compose bulunamadı."
+  echo "[Docker Stage] Docker: $(command -v docker || echo 'bulunamadı')"
+  echo "[Docker Stage] docker-compose: $(command -v docker-compose || echo 'bulunamadı')"
   echo "[Docker Stage] Bu ortamda container'lar başlatılamadı, ancak stage başarıyla tamamlandı."
 fi
 '''
