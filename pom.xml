@@ -167,9 +167,10 @@
                 <configuration>
                     <!-- Maven failsafe plugin'in standart pattern'leri -->
                     <includes>
+                        <!-- IT, ITCase ve *IntegrationTest entegrasyon testleri olarak çalıştırılır -->
                         <include>**/*IT.java</include>
                         <include>**/*ITCase.java</include>
-                        <include>**/*SeleniumTest.java</include>
+                        <include>**/*IntegrationTest.java</include>
                     </includes>
                     <testFailureIgnore>false</testFailureIgnore>
                     <!-- Force compile test classes -->

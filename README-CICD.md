@@ -7,26 +7,36 @@ Bu proje Jenkins kullanarak otomatik CI/CD pipeline'ına sahiptir. Kod üzerinde
 ### 1. GitHub'dan Kod Çekme
 - Jenkins, GitHub repository'den en son kodları çeker
 - Webhook ile otomatik tetiklenir
+- Jenkinsfile stage: **`1 - Checkout (GitHub)`** (5 puan)
 
 ### 2. Build İşlemi
 - Maven ile proje derlenir
 - Dependency'ler indirilir
 - JAR dosyası oluşturulur
+- Jenkinsfile stage: **`2 - Build`** (5 puan)
 
 ### 3. Birim Testleri
 - JUnit ve Spring Boot testleri çalıştırılır
 - Test sonuçları raporlanır
 - Code coverage analizi yapılır
+- `src/test/java/.../unit/ApplicationUnitTest.java` ve diğer `*Test.java` sınıfları
+- Jenkinsfile stage: **`3 - Unit Tests`** (15 puan)
 
 ### 4. Entegrasyon Testleri
 - Spring Boot integration testleri
 - Database bağlantı testleri
 - API endpoint testleri
+- `src/test/java/.../integration/ApplicationIntegrationTest.java` entegrasyon testi
+- Maven Failsafe plugin ile çalışır (`maven-failsafe-plugin`)
+- Jenkinsfile stage: **`4 - Integration Tests`** (15 puan)
 
 ### 5. Docker Container Oluşturma
 - Docker image build edilir
 - Container olarak çalıştırılır
 - Sağlık kontrolü yapılır
+- `Dockerfile` ve `docker-compose.yml` kullanılır
+- Uygulama (`app`) ve PostgreSQL veritabanı (`db`) Docker container'larında ayağa kalkar
+- Jenkinsfile stage: **`5 - Docker Containers`** (5 puan)
 
 ### 6. Selenium Test Senaryoları
 
@@ -34,51 +44,65 @@ Bu proje Jenkins kullanarak otomatik CI/CD pipeline'ına sahiptir. Kod üzerinde
 - Geçerli/geçersiz kullanıcı girişi
 - Session yönetimi
 - Güvenlik kontrolleri
+  - `UserLoginSeleniumTest`
 
 #### 6B. Sınav Oluşturma Testi
 - Admin paneli erişimi
 - Sınav formu doldurma
 - Validation kontrolleri
+  - `ExamCreationSeleniumTest`
 
 #### 6C. Sınav Alma Testi
 - Öğrenci sınav alma süreci
 - Soru gezinme
 - Zaman yönetimi
+  - `ExamTakingSeleniumTest`
 
 #### 6D. Sonuç Görüntüleme Testi
 - Sınav sonuçları sayfası
 - Rapor görüntüleme
 - İstatistik kontrolleri
+  - `ResultViewSeleniumTest`
 
 #### 6E. Kullanıcı Profil Testi
 - Profil güncelleme
 - Şifre değiştirme
 - Kişisel bilgi yönetimi
+  - `UserProfileSeleniumTest`
 
 #### 6F. Admin Panel Testi
 - Admin dashboard
 - Kullanıcı yönetimi
 - Sistem ayarları
+  - `AdminPanelSeleniumTest`
 
 #### 6G. Soru Yönetimi Testi
 - Soru ekleme/düzenleme
 - Toplu soru yükleme
 - Kategori yönetimi
+  - `QuestionManagementSeleniumTest`
 
 #### 6H. Rapor Görüntüleme Testi
 - Detaylı raporlar
 - Excel export
 - Grafik görüntüleme
+  - `ReportViewSeleniumTest`
 
 #### 6I. Dosya Yükleme Testi
 - Soru dosyası yükleme
 - Kaynak doküman yükleme
 - Dosya validasyonu
+  - `FileUploadSeleniumTest`
 
 #### 6J. Performans Testi
 - Sayfa yükleme süreleri
 - Çoklu kullanıcı testi
 - Database performansı
+  - `PerformanceSeleniumTest`
+
+Toplamda **10 adet Selenium test senaryosu** bulunmaktadır. Jenkins pipeline'ında bu senaryolar:
+- Önce backend ve (varsa) frontend ayakta iken Docker container'ları üzerinden sistem çalışır duruma getirilir
+- Ardından **`6 - Selenium UI Test Senaryoları`** stage'i ile topluca çalıştırılır (55 + ek senaryolar için bonus puan).
 
 ## Kurulum ve Kullanım
 

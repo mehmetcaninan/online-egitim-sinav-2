@@ -6,19 +6,46 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
+        stage('1 - Checkout (GitHub)') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Build & Unit Tests') {
+        stage('2 - Build') {
             steps {
-                sh './mvnw clean test -DskipSelenium=true'
+                // Projeyi testler olmadan derle (build aşaması)
+                sh './mvnw clean package -DskipTests'
             }
         }
 
-        stage('Selenium Tests') {
+        stage('3 - Unit Tests') {
+            steps {
+                // Sadece birim testleri (JUnit) çalıştır
+                sh './mvnw test -DskipSelenium=true'
+            }
+        }
+
+        stage('4 - Integration Tests') {
+            steps {
+                // Entegrasyon testlerini (ApplicationIntegrationTest vb.) çalıştır
+                sh './mvnw failsafe:integration-test failsafe:verify -DskipSelenium=true'
+            }
+        }
+
+        stage('5 - Docker Containers') {
+            when {
+                expression { fileExists('docker-compose.yml') }
+            }
+            steps {
+                // Uygulama ve veritabanını Docker container'ları üzerinde ayağa kaldır
+                sh 'docker-compose down -v || true'
+                sh 'docker-compose up -d --build app db'
+                sh 'docker ps'
+            }
+        }
+
+        stage('6 - Selenium UI Test Senaryoları') {
             when {
                 expression { fileExists('run-selenium-tests.sh') }
             }
@@ -31,7 +58,10 @@ pipeline {
 
     post {
         always {
+            // Birim test raporları
             junit 'target/surefire-reports/*.xml'
+            // Entegrasyon ve Selenium test raporları (failsafe)
+            junit 'target/failsafe-reports/*.xml'
         }
     }
 }
