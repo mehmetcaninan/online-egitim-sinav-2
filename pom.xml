@@ -172,6 +172,10 @@
                         <include>**/*ITCase.java</include>
                         <include>**/*IntegrationTest.java</include>
                     </includes>
+                    <!-- Selenium IT testleri entegrasyon aşamasında değil, ayrı Selenium stage'inde çalıştırılacak -->
+                    <excludes>
+                        <exclude>**/*SeleniumIT.java</exclude>
+                    </excludes>
                     <testFailureIgnore>false</testFailureIgnore>
                     <!-- Force compile test classes -->
                     <forkCount>1</forkCount>

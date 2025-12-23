@@ -34,10 +34,10 @@ else
 fi
 
 echo -e "${YELLOW}4. Maven bağımlılıkları kontrol ediliyor...${NC}"
-./mvn dependency:resolve -q
+./mvnw dependency:resolve -q
 
 echo -e "${YELLOW}5. Test derleme işlemi...${NC}"
-./mvn test-compile
+./mvnw test-compile
 
 echo -e "${YELLOW}6. Kapsamlı Selenium testleri çalıştırılıyor...${NC}"
 echo "Not: Testler Maven Failsafe plugin ile entegrasyon test fazında çalışır"
@@ -49,6 +49,6 @@ echo "  • ExamTaking testleri (Sınav alma)"
 echo "  • Ve diğer UI testleri..."
 
 # Tüm Selenium testlerini çalıştır
-./mvn failsafe:integration-test -Dtest=**/*SeleniumTest
+./mvnw failsafe:integration-test -Dtest=**/*SeleniumTest
 
 echo -e "${GREEN}🎉 Selenium testleri tamamlandı!${NC}"
