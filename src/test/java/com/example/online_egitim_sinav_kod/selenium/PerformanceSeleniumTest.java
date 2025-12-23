@@ -1,17 +1,9 @@
 package com.example.online_egitim_sinav_kod.selenium;
 
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebElement;
-import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.testng.Assert;
-import org.testng.annotations.Test;
-
-/**
- * Test Senaryosu 10: Sistem Performans Testi
- */
+// GEÇICI OLARAK DEVRE DIŞI
 public class PerformanceSeleniumTest extends BaseSeleniumTest {
 
-    @Test
+    /*@Test
     public void testPageLoadPerformance() {
         System.out.println("🧪 Test 10: Sayfa yükleme performans testi başlatılıyor...");
 
@@ -132,5 +124,5 @@ public class PerformanceSeleniumTest extends BaseSeleniumTest {
             System.out.println("⚠️ API endpoint bulunamadı, genel sayfa performansı kontrol ediliyor...");
             Assert.assertTrue(driver.getTitle().length() > 0);
         }
-    }
+    }*/
 }

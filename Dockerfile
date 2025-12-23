@@ -21,8 +21,8 @@ RUN ./mvnw clean package -DskipTests
 # JAR dosyasını kopyala
 RUN cp target/*.jar app.jar
 
-# Port'u aç
-EXPOSE 8080
+# Port'u aç (test ortamı için 8081)
+EXPOSE 8081
 
 # Uygulamayı başlat
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar", "--server.port=8081"]

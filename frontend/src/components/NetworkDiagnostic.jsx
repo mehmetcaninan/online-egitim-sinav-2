@@ -13,9 +13,9 @@ export default function NetworkDiagnostic() {
 
     try {
       // Test raw HTTP connection to backend
-      const rawResponse = await fetch('http://localhost:8080', {
+      const rawResponse = await fetch('http://localhost:8081', {
         method: 'GET',
-        mode: 'no-cors'
+        mode: 'cors'
       })
       testResults.push(`✅ Raw HTTP connection successful`)
     } catch (error) {
@@ -28,12 +28,12 @@ export default function NetworkDiagnostic() {
     const testConfigs = [
       {
         name: 'Simple GET to /api/courses',
-        url: 'http://localhost:8080/api/courses',
+        url: 'http://localhost:8081/api/courses',
         options: { method: 'GET' }
       },
       {
         name: 'GET with CORS headers to /api/courses',
-        url: 'http://localhost:8080/api/courses',
+        url: 'http://localhost:8081/api/courses',
         options: {
           method: 'GET',
           headers: {
@@ -45,7 +45,7 @@ export default function NetworkDiagnostic() {
       },
       {
         name: 'OPTIONS preflight to /api/courses',
-        url: 'http://localhost:8080/api/courses',
+        url: 'http://localhost:8081/api/courses',
         options: {
           method: 'OPTIONS',
           headers: {
@@ -75,18 +75,17 @@ export default function NetworkDiagnostic() {
     // Test 3: Alternative localhost addresses
     testResults.push(`\n=== Alternative Host Testing ===`)
 
-    const altHosts = ['localhost', '127.0.0.1', '0.0.0.0']
+    const altHosts = ['localhost', '127.0.0.1']
 
     for (const host of altHosts) {
       try {
-        const response = await fetch(`http://${host}:8080/api/courses`, {
+        const response = await fetch(`http://${host}:8081/api/courses`, {
           method: 'GET',
-          headers: { 'Accept': 'application/json' },
           mode: 'cors'
         })
-        testResults.push(`✅ ${host}:8080 - ${response.status}`)
+        testResults.push(`✅ ${host}:8081 - ${response.status}`)
       } catch (error) {
-        testResults.push(`❌ ${host}:8080 - ${error.message}`)
+        testResults.push(`❌ ${host}:8081 - ${error.message}`)
       }
     }
 
@@ -104,9 +103,11 @@ export default function NetworkDiagnostic() {
 
     for (const endpoint of springEndpoints) {
       try {
-        const response = await fetch(`http://localhost:8080${endpoint}`, {
+        const response = await fetch(`http://localhost:8081${endpoint}`, {
           method: 'GET',
-          mode: 'cors'
+          headers: {
+            'Authorization': 'Basic ' + btoa('admin:admin123')
+          }
         })
         testResults.push(`✅ ${endpoint}: ${response.status}`)
 
@@ -126,7 +127,7 @@ export default function NetworkDiagnostic() {
     // Test 5: Network debugging
     testResults.push(`\n=== Network Environment ===`)
     testResults.push(`Frontend Origin: ${window.location.origin}`)
-    testResults.push(`Target Backend: http://localhost:8080`)
+    testResults.push(`Target Backend: http://localhost:8081`)
     testResults.push(`Browser: ${navigator.userAgent.split(' ')[0]} ${navigator.userAgent.split(' ')[1]}`)
     testResults.push(`Platform: ${navigator.platform}`)
 

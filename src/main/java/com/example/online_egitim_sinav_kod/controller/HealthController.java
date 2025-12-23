@@ -2,6 +2,7 @@ package com.example.online_egitim_sinav_kod.controller;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.stereotype.Controller;
 
 import java.util.Map;
 import java.util.HashMap;
@@ -18,7 +19,7 @@ public class HealthController {
         response.put("status", "OK");
         response.put("message", "Backend is running");
         response.put("timestamp", LocalDateTime.now().toString());
-        response.put("port", "8080");
+        response.put("port", "8081");
         return ResponseEntity.ok(response);
     }
 
@@ -34,5 +35,14 @@ public class HealthController {
         response.put("received", body);
         response.put("timestamp", LocalDateTime.now().toString());
         return ResponseEntity.ok(response);
+    }
+}
+
+@Controller
+class HomeController {
+
+    @GetMapping("/")
+    public ResponseEntity<String> home() {
+        return ResponseEntity.ok("Online Eğitim Sistemi - Backend API");
     }
 }

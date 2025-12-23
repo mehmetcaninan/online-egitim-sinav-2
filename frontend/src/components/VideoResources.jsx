@@ -45,11 +45,13 @@ const VideoResources = ({ userRole, userId }) => {
     const fetchVideos = async () => {
         try {
             const endpoint = userRole === 'TEACHER' ? '/api/videos/my-videos' : '/api/videos';
+            const auth = localStorage.getItem('auth');
 
-            const response = await fetch(`http://localhost:8080${endpoint}`, {
+            const response = await fetch(`http://localhost:8081${endpoint}`, {
+                method: 'GET',
                 headers: {
-                    ...getAuthHeader(),
-                    'Content-Type': 'application/json'
+                    'Authorization': 'Basic ' + btoa(auth),
+                    'Accept': 'application/json'
                 }
             });
 
@@ -66,11 +68,13 @@ const VideoResources = ({ userRole, userId }) => {
 
     const fetchCourses = async () => {
         try {
+            const auth = localStorage.getItem('auth');
             // Mevcut endpoint'i kullan
-            const response = await fetch(`http://localhost:8080/api/courses/teacher/${userId}`, {
+            const response = await fetch(`http://localhost:8081/api/courses/teacher/${userId}`, {
+                method: 'GET',
                 headers: {
-                    ...getAuthHeader(),
-                    'Content-Type': 'application/json'
+                    'Authorization': 'Basic ' + btoa(auth),
+                    'Accept': 'application/json'
                 }
             });
 
@@ -96,8 +100,8 @@ const VideoResources = ({ userRole, userId }) => {
 
         try {
             const url = editingVideo
-                ? `http://localhost:8080/api/videos/${editingVideo.id}`
-                : 'http://localhost:8080/api/videos';
+                ? `http://localhost:8081/api/videos/${editingVideo.id}`
+                : 'http://localhost:8081/api/videos';
 
             const method = editingVideo ? 'PUT' : 'POST';
 
@@ -154,7 +158,7 @@ const VideoResources = ({ userRole, userId }) => {
         }
 
         try {
-            const response = await fetch(`http://localhost:8080/api/videos/${videoId}`, {
+            const response = await fetch(`http://localhost:8081/api/videos/${videoId}`, {
                 method: 'DELETE',
                 headers: {
                     ...getAuthHeader()

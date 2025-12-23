@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { setUserRole, approveUser, getClassroomCourses, getCourseStudents } from '../api'
+import { setUserRole, getClassroomCourses, getCourseStudents } from '../api'
 
 export default function Admin() {
   const [users, setUsers] = useState([])
@@ -20,19 +20,74 @@ export default function Admin() {
   const [courseStudents, setCourseStudents] = useState([])
   const [loadingCourseStudents, setLoadingCourseStudents] = useState(false)
   const [selectedCourseId, setSelectedCourseId] = useState(null)
+  const [debugInfo, setDebugInfo] = useState('')
 
   useEffect(() => {
     loadUsers()
     loadClassrooms()
   }, [])
 
+  const testBackendConnection = async () => {
+    try {
+      setDebugInfo('🔍 Backend bağlantısı test ediliyor...')
+
+      // İlk test: health endpoint'i (daha güvenilir)
+      const response = await fetch('http://localhost:8081/actuator/health', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        },
+        mode: 'cors'
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setDebugInfo('✅ Backend health check başarılı: ' + (data.status || 'OK'))
+        return true
+      }
+
+      // İkinci test: courses/active endpoint'i (authentication gerektirmez)
+      const coursesResponse = await fetch('http://localhost:8081/api/courses/active', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json'
+        },
+        mode: 'cors'
+      })
+
+      if (coursesResponse.ok || coursesResponse.status === 200) {
+        setDebugInfo(`✅ Backend çalışıyor (Active Courses API: ${coursesResponse.status})`)
+        return true
+      }
+
+      setDebugInfo(`⚠️ Backend yanıt verdi ama status: ${coursesResponse.status}`)
+      return false
+
+    } catch (error) {
+      setDebugInfo(`❌ Backend bağlantı hatası: ${error.message}`)
+      console.error('Backend connection test failed:', error)
+      return false
+    }
+  }
+
   async function loadUsers() {
     setLoading(true)
+    setDebugInfo('')
+
+    // Backend bağlantı testi
+    const backendWorking = await testBackendConnection()
+    if (!backendWorking) {
+      setMessage('Backend sunucusuna bağlanılamıyor. Lütfen backend\'in çalıştığından emin olun.')
+      setLoading(false)
+      return
+    }
+
     try {
       console.log('Admin: Kullanıcıları yüklemeye çalışıyor...')
+      setDebugInfo('Kullanıcılar yükleniyor...')
 
-      // Direkt fetch kullanarak test edelim
-      const response = await fetch('http://localhost:8080/api/admin/users', {
+      // Port numarasını 8081'e değiştir
+      const response = await fetch('http://localhost:8081/api/admin/users', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -47,6 +102,7 @@ export default function Admin() {
 
       const userData = await response.json()
       console.log('Admin: Kullanıcılar yüklendi:', userData)
+      setDebugInfo(`✅ ${userData.length} kullanıcı yüklendi`)
 
       // Tüm kullanıcıları göster - debug için
       console.log('Admin: Kullanıcı detayları:', userData.map(u => ({
@@ -62,6 +118,7 @@ export default function Admin() {
     } catch (e) {
       console.error('Admin: Kullanıcı yükleme hatası:', e)
       setMessage('Kullanıcılar yüklenirken hata oluştu: ' + e.message)
+      setDebugInfo(`❌ Kullanıcı yükleme hatası: ${e.message}`)
       setUsers([]) // Boş liste göster, hata durumunda da admin paneli çalışsın
     } finally {
       setLoading(false)
@@ -82,7 +139,9 @@ export default function Admin() {
 
   async function loadClassrooms() {
     try {
-      const response = await fetch('http://localhost:8080/api/admin/classrooms', {
+      setDebugInfo('Sınıflar yükleniyor...')
+      // Port numarasını 8081'e değiştir
+      const response = await fetch('http://localhost:8081/api/admin/classrooms', {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
@@ -94,9 +153,13 @@ export default function Admin() {
       if (response.ok) {
         const data = await response.json()
         setClassrooms(data || [])
+        setDebugInfo(`✅ ${data.length} sınıf yüklendi`)
+      } else {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
     } catch (error) {
       console.error('Admin: Sınıflar yüklenirken hata:', error)
+      setDebugInfo(`❌ Sınıf yükleme hatası: ${error.message}`)
     }
   }
 
@@ -155,7 +218,7 @@ export default function Admin() {
         return
       }
 
-      const response = await fetch('http://localhost:8080/api/admin/classrooms', {
+      const response = await fetch('http://localhost:8081/api/admin/classrooms', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
@@ -186,7 +249,7 @@ export default function Admin() {
 
   async function updateClassroom(classroomId, name, description) {
     try {
-      const response = await fetch(`http://localhost:8080/api/admin/classrooms/${classroomId}`, {
+      const response = await fetch(`http://localhost:8081/api/admin/classrooms/${classroomId}`, {
         method: 'PUT',
         headers: {
           'Accept': 'application/json',
@@ -216,7 +279,7 @@ export default function Admin() {
     }
 
     try {
-      const response = await fetch(`http://localhost:8080/api/admin/classrooms/${classroomId}`, {
+      const response = await fetch(`http://localhost:8081/api/admin/classrooms/${classroomId}`, {
         method: 'DELETE',
         headers: {
           'Accept': 'application/json',
@@ -240,7 +303,7 @@ export default function Admin() {
 
   async function updateUser(userId, fullName, username, role) {
     try {
-      const response = await fetch(`http://localhost:8080/api/admin/users/${userId}`, {
+      const response = await fetch(`http://localhost:8081/api/admin/users/${userId}`, {
         method: 'PUT',
         headers: {
           'Accept': 'application/json',
@@ -270,7 +333,7 @@ export default function Admin() {
     }
 
     try {
-      const response = await fetch(`http://localhost:8080/api/admin/users/${userId}`, {
+      const response = await fetch(`http://localhost:8081/api/admin/users/${userId}`, {
         method: 'DELETE',
         headers: {
           'Accept': 'application/json',
@@ -294,7 +357,7 @@ export default function Admin() {
 
   async function changeStudentClassroom(userId, classroomId) {
     try {
-      const response = await fetch(`http://localhost:8080/api/admin/users/${userId}/classroom`, {
+      const response = await fetch(`http://localhost:8081/api/admin/users/${userId}/classroom`, {
         method: 'PUT',
         headers: {
           'Accept': 'application/json',
@@ -326,7 +389,7 @@ export default function Admin() {
       if (!user) return
       
       // Öğrenci ise ve sınıf seçilmişse, sınıf ID'si ile onayla
-      let url = `http://localhost:8080/api/admin/users/${userId}/approve`
+      let url = `http://localhost:8081/api/admin/users/${userId}/approve`
       if (user.role === 'STUDENT' && classroomId) {
         url += `?classroomId=${classroomId}`
       } else {
@@ -362,7 +425,7 @@ export default function Admin() {
   async function rejectUser(userId) {
     try {
       console.log('Admin: Kullanıcı reddediliyor...', { userId })
-      const response = await fetch(`http://localhost:8080/api/admin/users/${userId}/reject`, {
+      const response = await fetch(`http://localhost:8081/api/admin/users/${userId}/reject`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
@@ -390,7 +453,7 @@ export default function Admin() {
       const user = users.find(u => u.id === userId)
       if (!user) return
 
-      const response = await fetch(`http://localhost:8080/api/admin/users/${userId}/approve`, {
+      const response = await fetch(`http://localhost:8081/api/admin/users/${userId}/approve`, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
@@ -626,7 +689,7 @@ export default function Admin() {
                     className="view-details-btn"
                     onClick={async () => {
                       try {
-                        const response = await fetch(`http://localhost:8080/api/admin/classrooms/${classroom.id}/students`)
+                        const response = await fetch(`http://localhost:8081/api/admin/classrooms/${classroom.id}/students`)
                         if (response.ok) {
                           const students = await response.json()
                           alert(`Sınıf: ${classroom.name}\nÖğrenci Sayısı: ${students.length}\nÖğrenciler: ${students.map(s => s.fullName || s.username).join(', ')}`)
@@ -643,7 +706,7 @@ export default function Admin() {
                     className="view-details-btn"
                     onClick={async () => {
                       try {
-                        const response = await fetch(`http://localhost:8080/api/admin/classrooms/${classroom.id}/courses`)
+                        const response = await fetch(`http://localhost:8081/api/admin/classrooms/${classroom.id}/courses`)
                         if (response.ok) {
                           const courses = await response.json()
                           alert(`Sınıf: ${classroom.name}\nDers Sayısı: ${courses.length}\nDersler: ${courses.map(c => c.title).join(', ') || 'Yok'}`)
@@ -797,6 +860,20 @@ export default function Admin() {
       <div className="dashboard-header">
         <h2>Admin Paneli</h2>
         <p>Kullanıcı ve sistem yönetimi</p>
+
+        {/* Debug Info - Auth.jsx'teki gibi */}
+        {debugInfo && (
+          <div style={{
+            background: '#f8f9fa',
+            padding: '10px',
+            borderRadius: '4px',
+            margin: '10px 0',
+            fontSize: '12px',
+            color: '#666'
+          }}>
+            <strong>Debug:</strong> {debugInfo}
+          </div>
+        )}
       </div>
 
       <nav className="dashboard-nav">

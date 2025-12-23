@@ -14,38 +14,39 @@ export default function Auth({ onLogin }) {
   const [debugInfo, setDebugInfo] = useState('')
 
   const testBackendConnection = async () => {
-    setDebugInfo('Backend bağlantısı test ediliyor...')
-
     try {
-      // Önce health endpoint'ini deneyelim (backend 8080 portunda)
-      const response = await fetch('http://localhost:8080/api/health', {
+      setDebugInfo('🔍 Backend bağlantısı test ediliyor...')
+
+      // İlk test: health endpoint'i (daha güvenilir)
+      const response = await fetch('http://localhost:8081/actuator/health', {
         method: 'GET',
         headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Accept': 'application/json'
         },
         mode: 'cors'
       })
 
       if (response.ok) {
         const data = await response.json()
-        setDebugInfo(`✅ Backend çalışıyor: ${data.message}`)
+        setDebugInfo('✅ Backend health check başarılı: ' + (data.status || 'OK'))
         return true
       }
 
-      // Health endpoint yoksa courses'u deneyelim
-      const coursesResponse = await fetch('http://localhost:8080/api/courses', {
+      // İkinci test: courses/active endpoint'i (authentication gerektirmez)
+      const coursesResponse = await fetch('http://localhost:8081/api/courses/active', {
         method: 'GET',
-        headers: { 'Accept': 'application/json' },
+        headers: {
+          'Accept': 'application/json'
+        },
         mode: 'cors'
       })
 
       if (coursesResponse.ok || coursesResponse.status === 200) {
-        setDebugInfo(`✅ Backend çalışıyor (Courses API: ${coursesResponse.status})`)
+        setDebugInfo(`✅ Backend çalışıyor (Active Courses API: ${coursesResponse.status})`)
         return true
       }
 
-      setDebugInfo(`⚠️ Backend yanıt verdi ama status: ${response.status}`)
+      setDebugInfo(`⚠️ Backend yanıt verdi ama status: ${coursesResponse.status}`)
       return false
 
     } catch (error) {

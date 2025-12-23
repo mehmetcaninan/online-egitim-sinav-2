@@ -412,7 +412,7 @@ const StudentDashboard = ({ user }) => {
                                                                     {resourcesByCourse[enrollment.course.id].map(res => (
                                                                     <li key={res.id} style={{ marginBottom: '6px' }}>
                                                                         <a
-                                                                            href={`http://localhost:8080/api/resources/${res.id}/download`}
+                                                                            href={`http://localhost:8081/api/resources/${res.id}/download`}
                                                                             target="_blank"
                                                                             rel="noopener noreferrer"
                                                                             style={{ textDecoration: 'none', color: '#1976d2', fontSize: '13px' }}

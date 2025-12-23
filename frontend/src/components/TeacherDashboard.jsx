@@ -3,6 +3,9 @@ import { fetchClassrooms, getCourseResources, getCourseStudents, getCoursesByTea
 import VideoResources from './VideoResources';
 import '../styles.css';
 
+// API base URL - backend 8081 portunda çalışıyor
+const API_BASE_URL = 'http://localhost:8081';
+
 const TeacherDashboard = ({ user }) => {
     const [activeTab, setActiveTab] = useState('pending');
     const [pendingRequests, setPendingRequests] = useState([]);
@@ -59,7 +62,7 @@ const TeacherDashboard = ({ user }) => {
     const fetchPendingRequests = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`http://localhost:8080/api/teacher/enrollments/pending/${user.id}`);
+            const response = await fetch(`${API_BASE_URL}/api/teacher/enrollments/pending/${user.id}`);
             if (response.ok) {
                 const data = await response.json();
                 setPendingRequests(data);
@@ -76,7 +79,7 @@ const TeacherDashboard = ({ user }) => {
     const fetchAllRequests = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`http://localhost:8080/api/teacher/enrollments/all/${user.id}`);
+            const response = await fetch(`${API_BASE_URL}/api/teacher/enrollments/all/${user.id}`);
             if (response.ok) {
                 const data = await response.json();
                 setAllRequests(data);
@@ -92,7 +95,7 @@ const TeacherDashboard = ({ user }) => {
     // Katılım isteğini onayla
     const approveRequest = async (enrollmentId) => {
         try {
-            const response = await fetch(`http://localhost:8080/api/teacher/enrollments/approve/${enrollmentId}`, {
+            const response = await fetch(`${API_BASE_URL}/api/teacher/enrollments/approve/${enrollmentId}`, {
                 method: 'POST'
             });
 
@@ -112,7 +115,7 @@ const TeacherDashboard = ({ user }) => {
     // Katılım isteğini reddet
     const rejectRequest = async (enrollmentId) => {
         try {
-            const response = await fetch(`http://localhost:8080/api/teacher/enrollments/reject/${enrollmentId}`, {
+            const response = await fetch(`${API_BASE_URL}/api/teacher/enrollments/reject/${enrollmentId}`, {
                 method: 'POST'
             });
 

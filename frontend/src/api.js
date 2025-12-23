@@ -1,5 +1,5 @@
-// Frontend runs on http://localhost:5173; backend on http://localhost:8080
-const baseUrl = 'http://localhost:8080'
+// Frontend runs on http://localhost:5173; backend on http://localhost:8081
+const baseUrl = 'http://localhost:8081'
 
 function getAuthHeader() {
   const auth = localStorage.getItem('auth')

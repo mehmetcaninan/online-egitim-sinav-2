@@ -48,7 +48,8 @@ public class SecurityConfig {
             }));
 
         // H2 console frames için
-        http.headers(headers -> headers.frameOptions().sameOrigin());
+        http.headers(headers -> headers
+                .frameOptions(frameOptions -> frameOptions.sameOrigin()));
 
         return http.build();
     }

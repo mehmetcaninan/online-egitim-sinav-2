@@ -13,13 +13,13 @@ if [ ! -z "$DB_PIDS" ]; then
     echo "✓ Veritabanı bağlantıları kapatıldı"
 fi
 
-# Port 8080'de çalışan süreçleri bul ve durdur
-PORT_PID=$(lsof -ti:8080 2>/dev/null)
+# Port 8081'de çalışan süreçleri bul ve durdur
+PORT_PID=$(lsof -ti:8081 2>/dev/null)
 if [ ! -z "$PORT_PID" ]; then
-    echo "Port 8080'de çalışan süreç bulundu (PID: $PORT_PID), durduruluyor..."
+    echo "Port 8081'de çalışan süreç bulundu (PID: $PORT_PID), durduruluyor..."
     kill -9 $PORT_PID 2>/dev/null
-    sleep 1
-    echo "✓ Port 8080 temizlendi"
+    sleep 2
+    echo "✓ Port 8081 temizlendi"
 fi
 
 # Çalışan Spring Boot jar süreçlerini bul ve durdur

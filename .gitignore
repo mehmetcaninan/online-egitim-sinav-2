@@ -31,3 +31,22 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# === Database ===
+data/*.mv.db
+data/*.backup*
+
+# === Node ===
+frontend/node_modules
+frontend/dist
+
+# === Maven ===
+target/
+*.log
+
+# === OS ===
+.DS_Store
+
+# === IDE ===
+.idea
+.vscode

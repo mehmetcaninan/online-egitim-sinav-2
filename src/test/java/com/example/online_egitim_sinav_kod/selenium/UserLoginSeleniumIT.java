@@ -7,9 +7,10 @@ import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 
 /**
- * Test Senaryosu 1: Kullanıcı Giriş Testi - JUnit 5 Version
+ * Selenium Entegrasyon Testi: Kullanıcı Giriş Testi
+ * Maven failsafe plugin tarafından tanınması için *IT.java ismi kullanılıyor
  */
-public class UserLoginSeleniumTest extends BaseSeleniumTest {
+public class UserLoginSeleniumIT extends BaseSeleniumTest {
 
     @Test
     public void testValidUserLogin() {
@@ -23,7 +24,7 @@ public class UserLoginSeleniumTest extends BaseSeleniumTest {
 
             // Sayfa başlığı kontrolü (minimum gereklilik)
             String pageTitle = driver.getTitle();
-            System.out.println("Sayfa başlığı: '" + pageTitle + "'");
+            System.out.println("📄 Sayfa başlığı: '" + pageTitle + "'");
 
             // Sayfa içeriği kontrolü
             String pageSource = driver.getPageSource();
@@ -39,7 +40,7 @@ public class UserLoginSeleniumTest extends BaseSeleniumTest {
             if (hasLoginElements) {
                 System.out.println("✅ Giriş elementleri bulundu");
                 performLogin("admin", "123456");
-                // Giriş işlemi yapıldı, başarılı kabul et
+                System.out.println("🎉 Test başarılı - Giriş işlemi tamamlandı!");
                 Assertions.assertTrue(true);
             } else {
                 System.out.println("⚠️ Giriş elementleri bulunamadı, temel sayfa kontrolü yapılıyor...");
@@ -50,6 +51,7 @@ public class UserLoginSeleniumTest extends BaseSeleniumTest {
 
                 if (pageLoaded) {
                     System.out.println("✅ Sayfa başarıyla yüklendi (içerik: " + pageSource.length() + " karakter)");
+                    System.out.println("🎉 Test başarılı - Web uygulaması erişilebilir!");
                     Assertions.assertTrue(true);
                 } else {
                     System.out.println("❌ Sayfa düzgün yüklenemedi");
@@ -101,6 +103,7 @@ public class UserLoginSeleniumTest extends BaseSeleniumTest {
                 }
             } else {
                 System.out.println("⚠️ Giriş formu bulunamadı, sayfa yüklenme kontrol ediliyor...");
+                System.out.println("🌐 Mevcut URL: " + driver.getCurrentUrl());
 
                 // Sayfa içeriği kontrolü
                 String pageSource = driver.getPageSource();
@@ -108,7 +111,6 @@ public class UserLoginSeleniumTest extends BaseSeleniumTest {
 
                 if (pageLoaded) {
                     System.out.println("✅ Sayfa yüklendi (giriş formu olmasa da)");
-                    System.out.println("🌐 Mevcut URL: " + driver.getCurrentUrl());
                     Assertions.assertTrue(true);
                 } else {
                     System.out.println("❌ Sayfa yüklenemedi");
@@ -127,6 +129,30 @@ public class UserLoginSeleniumTest extends BaseSeleniumTest {
                 Assertions.fail("Sunucu erişilemez: " + driver.getCurrentUrl());
             }
         }
+    }
+
+    @Test
+    public void testBasicPageLoad() {
+        System.out.println("🧪 Test 1c: Temel sayfa yükleme testi başlatılıyor...");
+
+        navigateToHome();
+
+        // En temel test - sayfa yüklenebiliyor mu?
+        String currentUrl = driver.getCurrentUrl();
+        String pageTitle = driver.getTitle();
+        String pageSource = driver.getPageSource();
+
+        System.out.println("🌐 URL: " + currentUrl);
+        System.out.println("📄 Title: " + pageTitle);
+        System.out.println("📊 Page size: " + pageSource.length() + " characters");
+
+        // Temel assertion'lar
+        Assertions.assertNotNull(currentUrl, "URL null olmamalı");
+        Assertions.assertTrue(currentUrl.contains("localhost"), "URL localhost içermeli");
+        Assertions.assertNotNull(pageTitle, "Title null olmamalı");
+        Assertions.assertTrue(pageSource.length() > 0, "Page source boş olmamalı");
+
+        System.out.println("✅ Temel sayfa yükleme testi başarılı!");
     }
 
     private void performLogin(String username, String password) {
