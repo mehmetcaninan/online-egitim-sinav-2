@@ -28,20 +28,40 @@ public abstract class BaseSeleniumTest {
         WebDriverManager.chromedriver().setup();
 
         ChromeOptions options = new ChromeOptions();
-        // Chrome'u görünür modda çalıştır (debug için)
-        // options.addArguments("--headless"); // Bu satırı kapatıyorum
+        // CI/CD ortamlarında headless mod zorunludur (Jenkins, Docker vb.)
+        // Yerel geliştirmede headless'i kapatmak için: -Dselenium.headless=false
+        boolean headless = !"false".equalsIgnoreCase(System.getProperty("selenium.headless", "true"));
+        if (headless) {
+            options.addArguments("--headless=new"); // Yeni headless mod
+        }
+        
+        // CI/CD ortamları için gerekli argümanlar
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--disable-gpu");
         options.addArguments("--window-size=1200,800");
         options.addArguments("--disable-web-security");
         options.addArguments("--allow-running-insecure-content");
+        options.addArguments("--disable-extensions");
+        options.addArguments("--disable-software-rasterizer");
+        options.addArguments("--disable-background-timer-throttling");
+        options.addArguments("--disable-backgrounding-occluded-windows");
+        options.addArguments("--disable-renderer-backgrounding");
+        options.addArguments("--disable-features=TranslateUI");
+        options.addArguments("--disable-ipc-flooding-protection");
+        
+        // Binary path'i belirt (CI ortamlarında gerekli olabilir)
+        String chromeBinary = System.getProperty("chrome.binary.path");
+        if (chromeBinary != null && !chromeBinary.isEmpty()) {
+            options.setBinary(chromeBinary);
+        }
 
         driver = new ChromeDriver(options);
         wait = new WebDriverWait(driver, Duration.ofSeconds(15));
 
         System.out.println("🚀 WebDriver başlatıldı: " + this.getClass().getSimpleName());
         System.out.println("🌐 Test URL: " + getBaseUrl());
+        System.out.println("🔧 Headless mod: " + headless);
     }
 
     @AfterEach
