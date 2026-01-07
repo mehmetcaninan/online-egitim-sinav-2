@@ -1,7 +1,13 @@
 pipeline {
-    agent any
+    // Mac agent'ı tercih et (Chrome mevcut), yoksa herhangi bir agent kullan
+    // Node adı: Mac-agent veya mac-agent (büyük/küçük harf duyarlı)
+    agent {
+        label 'mac chrome || Mac-agent || any'
+    }
 
     tools {
+        // Mac'te Homebrew ile kurulu JDK kullanılacak
+        // JDK17 yerine sistem JDK'sı kullanılabilir
         jdk 'JDK17'
     }
 
@@ -69,7 +75,7 @@ fi
                 sh 'chmod +x run-selenium-tests.sh'
                 // Selenium testleri başarısız olsa bile pipeline'ı kırmamak için catchError kullan
                 catchError(buildResult: 'SUCCESS', stageResult: 'UNSTABLE') {
-                    sh './run-selenium-tests.sh'
+                sh './run-selenium-tests.sh'
                 }
             }
         }
