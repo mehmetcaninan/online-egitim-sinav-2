@@ -80,27 +80,30 @@ fi
 
     post {
         always {
-            // Test sonuçlarını daha güvenilir şekilde publish et
+            // Test sonuçlarını sadece JUnit plugin ile publish et
             script {
-                // Surefire test sonuçları (unit tests)
-                if (fileExists('target/surefire-reports')) {
-                    publishTestResults testResultsPattern: 'target/surefire-reports/*.xml',
-                                     mergeResults: true,
-                                     failOnError: false
-                }
-
-                // Failsafe test sonuçları (integration & selenium tests)
-                if (fileExists('target/failsafe-reports')) {
-                    publishTestResults testResultsPattern: 'target/failsafe-reports/*.xml',
-                                     mergeResults: true,
-                                     failOnError: false
-                }
-
-                // Eski JUnit plugin için fallback
                 try {
-                    junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml,target/failsafe-reports/*.xml'
+                    // Surefire test sonuçları (unit tests)
+                    if (fileExists('target/surefire-reports')) {
+                        junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+                    }
+
+                    // Failsafe test sonuçları (integration & selenium tests)
+                    if (fileExists('target/failsafe-reports')) {
+                        junit allowEmptyResults: true, testResults: 'target/failsafe-reports/*.xml'
+                    }
+
+                    echo "✅ Test sonuçları başarıyla publish edildi"
                 } catch (Exception e) {
-                    echo "JUnit plugin mevcut değil: ${e.getMessage()}"
+                    echo "⚠️ Test sonuçları publish edilemedi: ${e.getMessage()}"
+                    echo "Test dosyaları kontrol ediliyor..."
+
+                    if (fileExists('target/surefire-reports')) {
+                        sh 'ls -la target/surefire-reports/'
+                    }
+                    if (fileExists('target/failsafe-reports')) {
+                        sh 'ls -la target/failsafe-reports/'
+                    }
                 }
             }
         }
