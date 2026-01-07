@@ -21,6 +21,15 @@ pipeline {
         PATH = "${JAVA_HOME}/bin:${PATH}"
         CI = 'true'
         SELENIUM_HEADLESS = 'true'
+        DISPLAY = ':99'
+    }
+
+    tools {
+        jdk 'JDK17'
+        maven 'Maven3'
+    }
+
+    stages {
         stage('0 - Webhook Test & Info') {
             steps {
                 script {
@@ -43,17 +52,6 @@ pipeline {
             }
         }
 
-        DISPLAY = ':99'
-        // Webhook test için environment variable
-        WEBHOOK_TRIGGERED = "${env.BUILD_CAUSE?.contains('GitHubPushCause') ? 'true' : 'false'}"
-    }
-
-    tools {
-        jdk 'JDK17'
-        maven 'Maven3'
-    }
-
-    stages {
         stage('1 - Checkout (GitHub)') {
             steps {
                 checkout scm
