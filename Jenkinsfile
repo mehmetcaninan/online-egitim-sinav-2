@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        JAVA_HOME = tool name: 'JDK 17'
+        JAVA_HOME = tool name: 'JDK17'
         PATH = "${JAVA_HOME}/bin:${PATH}"
         CI = 'true'
         SELENIUM_HEADLESS = 'true'
@@ -10,8 +10,8 @@ pipeline {
     }
 
     tools {
-        jdk 'JDK 17'
-        maven 'Maven'
+        jdk 'JDK17'
+        maven 'Maven3'
     }
 
     stages {
@@ -189,4 +189,3 @@ pipeline {
         }
     }
 }
-
