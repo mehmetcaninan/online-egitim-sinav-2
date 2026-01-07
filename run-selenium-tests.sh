@@ -40,13 +40,23 @@ if [ "$CI_ENVIRONMENT" = true ]; then
         # Temel araçları kur
         apt-get install -y -qq wget curl unzip npm xvfb || echo "⚠️  Bazı paketler kurulamadı"
 
-        # Chrome kurulumu
-        if ! command -v google-chrome &> /dev/null; then
+        # Chrome kurulumu - daha güvenilir yöntem
+        if ! command -v google-chrome &> /dev/null && ! command -v chromium-browser &> /dev/null; then
             echo "🌐 Google Chrome kuruluyor..."
-            wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - 2>/dev/null || echo "Chrome key ekleme başarısız"
-            echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list 2>/dev/null || echo "Chrome repo ekleme başarısız"
-            apt-get update -qq || echo "Chrome repo update başarısız"
-            apt-get install -y -qq google-chrome-stable || echo "Chrome kurulumu başarısız oldu"
+
+            # Chrome repository anahtarını güvenli şekilde ekle
+            curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg
+            echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list
+
+            apt-get update -qq 2>/dev/null || {
+                echo "⚠️ Chrome repository kullanılamıyor, Chromium deneniyor..."
+                apt-get install -y -qq chromium-browser || echo "❌ Chrome/Chromium kurulumu başarısız"
+            }
+
+            apt-get install -y -qq google-chrome-stable 2>/dev/null || {
+                echo "⚠️ Google Chrome kurulamadı, Chromium deneniyor..."
+                apt-get install -y -qq chromium-browser || echo "❌ Chrome/Chromium kurulumu başarısız"
+            }
         fi
 
     elif command -v yum &> /dev/null; then
@@ -182,8 +192,42 @@ if [ "$CI_ENVIRONMENT" = true ]; then
     export SELENIUM_HEADLESS=true
 fi
 
-# Selenium testlerini çalıştır
-./mvnw failsafe:integration-test failsafe:verify -Dtest="**/*Selenium*" -DfailIfNoTests=false -DskipSelenium=false
+# Selenium testlerini çalıştır - düzeltilmiş Maven komutu
+echo "==============================================="
+echo "🧪 SELENIUM TESTLERİ BAŞLATIYOR"
+echo "==============================================="
+
+if [ "$skipSelenium" = "true" ]; then
+    echo -e "${YELLOW}⚠️ Selenium testleri atlandı (Chrome/Chromium bulunamadı)${NC}"
+    SELENIUM_EXIT_CODE=0
+else
+    # Selenium profile'ını kullanarak testleri çalıştır
+    ./mvnw failsafe:integration-test failsafe:verify -Pselenium-tests -Dci=true \
+        -Dselenium.headless=${SELENIUM_HEADLESS:-true} \
+        -Dapp.baseUrl=http://localhost:8081 \
+        -DfailIfNoTests=false \
+        -Dmaven.test.failure.ignore=false \
+        -q
+
+    SELENIUM_EXIT_CODE=$?
+
+    echo "==============================================="
+    if [ $SELENIUM_EXIT_CODE -eq 0 ]; then
+        echo -e "${GREEN}✅ SELENIUM TESTLERİ BAŞARILI${NC}"
+    else
+        echo -e "${RED}❌ SELENIUM TESTLERİ BAŞARISIZ (Exit Code: $SELENIUM_EXIT_CODE)${NC}"
+    fi
+    echo "==============================================="
+
+    # Test sonuçlarını göster
+    if [ -d "target/selenium-reports" ]; then
+        echo -e "${YELLOW}📊 Selenium Test Sonuçları:${NC}"
+        find target/selenium-reports -name "*.xml" -exec grep -l "testcase" {} \; 2>/dev/null | while read file; do
+            echo "  📄 $file"
+            grep "testcase" "$file" | head -5 2>/dev/null || true
+        done
+    fi
+fi
 
 SELENIUM_EXIT_CODE=$?
 

@@ -1,6 +1,12 @@
 pipeline {
     agent any
 
+    // GitHub webhook trigger'ları ekleniyor
+    triggers {
+        githubPush()
+        pollSCM('H/15 * * * *') // 15 dakikada bir kontrol et (backup)
+    }
+
     environment {
         JAVA_HOME = tool name: 'JDK17'
         PATH = "${JAVA_HOME}/bin:${PATH}"

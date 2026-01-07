@@ -180,14 +180,9 @@
                         <include>**/*IT.java</include>
                         <include>**/*ITCase.java</include>
                         <include>**/*IntegrationTest.java</include>
-                        <!-- Selenium testleri de dahil et -->
-                        <include>**/*SeleniumTest.java</include>
-                        <include>**/*SeleniumIT.java</include>
                     </includes>
-                    <!-- Selenium testleri atlamak için kontrol -->
+                    <!-- Selenium testleri varsayılan olarak atlanır -->
                     <excludes>
-                        <exclude>${skipSelenium.pattern}</exclude>
-                        <!-- Integration Tests stage'inde Selenium testlerini atla -->
                         <exclude>**/*SeleniumTest.java</exclude>
                         <exclude>**/*SeleniumIT.java</exclude>
                     </excludes>
@@ -235,5 +230,125 @@
 
         </plugins>
     </build>
+
+    <!-- Maven Profiles for different test scenarios -->
+    <profiles>
+        <!-- Selenium Tests Profile - Ayrı çalıştırılır -->
+        <profile>
+            <id>selenium-tests</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <version>3.2.5</version>
+                        <executions>
+                            <execution>
+                                <id>selenium-integration-test</id>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                                <configuration>
+                                    <!-- Sadece Selenium testleri çalıştırılır -->
+                                    <includes>
+                                        <include>**/*SeleniumTest.java</include>
+                                        <include>**/*SeleniumIT.java</include>
+                                    </includes>
+                                    <excludes>
+                                        <exclude>**/*IntegrationTest.java</exclude>
+                                    </excludes>
+                                    <testFailureIgnore>false</testFailureIgnore>
+                                    <reportsDirectory>${project.build.directory}/selenium-reports</reportsDirectory>
+                                    <systemPropertyVariables>
+                                        <spring.profiles.active>test</spring.profiles.active>
+                                        <selenium.headless>${selenium.headless}</selenium.headless>
+                                        <webdriver.chrome.driver>${webdriver.chrome.driver}</webdriver.chrome.driver>
+                                        <chrome.binary.path>${chrome.binary.path}</chrome.binary.path>
+                                        <app.baseUrl>${app.baseUrl}</app.baseUrl>
+                                        <CI>${CI}</CI>
+                                    </systemPropertyVariables>
+                                    <argLine>
+                                        -Xmx1024m
+                                        -XX:+UseG1GC
+                                        -Djava.awt.headless=true
+                                        -Dwebdriver.chrome.whitelistedIps=
+                                        -Dwebdriver.chrome.verboseLogging=false
+                                    </argLine>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!-- CI/CD Profile - Detaylı raporlama ile -->
+        <profile>
+            <id>ci</id>
+            <properties>
+                <CI>true</CI>
+                <selenium.headless>true</selenium.headless>
+                <maven.test.failure.ignore>false</maven.test.failure.ignore>
+            </properties>
+            <build>
+                <plugins>
+                    <!-- Surefire Plugin - Unit Tests için detaylı rapor -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <version>3.2.5</version>
+                        <configuration>
+                            <includes>
+                                <include>**/*Test.java</include>
+                            </includes>
+                            <excludes>
+                                <exclude>**/*IntegrationTest.java</exclude>
+                                <exclude>**/*SeleniumTest.java</exclude>
+                            </excludes>
+                            <testFailureIgnore>false</testFailureIgnore>
+                            <reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
+                            <properties>
+                                <property>
+                                    <name>junit.platform.output.capture.stdout</name>
+                                    <value>true</value>
+                                </property>
+                            </properties>
+                            <!-- Detaylı test çıktısı -->
+                            <printSummary>true</printSummary>
+                            <useFile>true</useFile>
+                        </configuration>
+                    </plugin>
+
+                    <!-- Failsafe Plugin - Integration Tests için detaylı rapor -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <version>3.2.5</version>
+                        <configuration>
+                            <includes>
+                                <include>**/*IT.java</include>
+                                <include>**/*ITCase.java</include>
+                                <include>**/*IntegrationTest.java</include>
+                            </includes>
+                            <excludes>
+                                <exclude>**/*SeleniumTest.java</exclude>
+                                <exclude>**/*SeleniumIT.java</exclude>
+                            </excludes>
+                            <testFailureIgnore>false</testFailureIgnore>
+                            <reportsDirectory>${project.build.directory}/failsafe-reports</reportsDirectory>
+                            <!-- Detaylı test çıktısı -->
+                            <printSummary>true</printSummary>
+                            <useFile>true</useFile>
+                            <systemPropertyVariables>
+                                <spring.profiles.active>test</spring.profiles.active>
+                                <CI>${CI}</CI>
+                            </systemPropertyVariables>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 
 </project>
