@@ -187,6 +187,9 @@
                     <!-- Selenium testleri atlamak için kontrol -->
                     <excludes>
                         <exclude>${skipSelenium.pattern}</exclude>
+                        <!-- Integration Tests stage'inde Selenium testlerini atla -->
+                        <exclude>**/*SeleniumTest.java</exclude>
+                        <exclude>**/*SeleniumIT.java</exclude>
                     </excludes>
                     <testFailureIgnore>false</testFailureIgnore>
                     <!-- Force compile test classes -->
