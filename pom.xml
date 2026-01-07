@@ -19,6 +19,15 @@
     <properties>
         <java.version>17</java.version>
         <maven.test.failure.ignore>false</maven.test.failure.ignore>
+
+        <!-- Selenium CI/CD Properties -->
+        <selenium.headless>true</selenium.headless>
+        <skipSelenium>false</skipSelenium>
+        <skipSelenium.pattern></skipSelenium.pattern>
+        <app.baseUrl>http://localhost:5173</app.baseUrl>
+        <webdriver.chrome.driver></webdriver.chrome.driver>
+        <chrome.binary.path></chrome.binary.path>
+        <CI>false</CI>
     </properties>
 
     <dependencies>
@@ -171,10 +180,13 @@
                         <include>**/*IT.java</include>
                         <include>**/*ITCase.java</include>
                         <include>**/*IntegrationTest.java</include>
+                        <!-- Selenium testleri de dahil et -->
+                        <include>**/*SeleniumTest.java</include>
+                        <include>**/*SeleniumIT.java</include>
                     </includes>
-                    <!-- Selenium IT testleri entegrasyon aşamasında değil, ayrı Selenium stage'inde çalıştırılacak -->
+                    <!-- Selenium testleri atlamak için kontrol -->
                     <excludes>
-                        <exclude>**/*SeleniumIT.java</exclude>
+                        <exclude>${skipSelenium.pattern}</exclude>
                     </excludes>
                     <testFailureIgnore>false</testFailureIgnore>
                     <!-- Force compile test classes -->
@@ -183,12 +195,20 @@
                     <!-- System properties -->
                     <systemPropertyVariables>
                         <spring.profiles.active>test</spring.profiles.active>
+                        <selenium.headless>${selenium.headless}</selenium.headless>
+                        <webdriver.chrome.driver>${webdriver.chrome.driver}</webdriver.chrome.driver>
+                        <chrome.binary.path>${chrome.binary.path}</chrome.binary.path>
+                        <app.baseUrl>${app.baseUrl}</app.baseUrl>
+                        <CI>${CI}</CI>
+                        <skipSelenium>${skipSelenium}</skipSelenium>
                     </systemPropertyVariables>
                     <!-- JVM arguments -->
                     <argLine>
                         -Xmx1024m
                         -XX:+UseG1GC
                         -Djava.awt.headless=true
+                        -Dwebdriver.chrome.whitelistedIps=
+                        -Dwebdriver.chrome.verboseLogging=false
                     </argLine>
                 </configuration>
             </plugin>
