@@ -4,10 +4,11 @@ import io.github.bonigarcia.wdm.WebDriverManager;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Assumptions;
-import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.support.ui.ExpectedConditions;
 
 import java.time.Duration;
 
@@ -161,6 +162,127 @@ public abstract class BaseSeleniumTest {
             Thread.sleep(1000); // Sayfa yüklenmesi için kısa bekleme
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+    }
+
+    // ========================================
+    // EKSİK METODLAR - COMPILATION HATALARINI ÇÖZ
+    // ========================================
+
+    /**
+     * Element varlığını kontrol eder (CSS selector ile)
+     */
+    protected boolean isElementPresent(String cssSelector) {
+        try {
+            if (driver == null) return false;
+            return !driver.findElements(By.cssSelector(cssSelector)).isEmpty();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * URL'nin belirli bir metin içerip içermediğini kontrol eder
+     */
+    protected boolean urlContains(String text) {
+        try {
+            if (driver == null) return false;
+            String currentUrl = driver.getCurrentUrl();
+            return currentUrl != null && currentUrl.contains(text);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Element bulunmasını bekler (CSS selector ile)
+     */
+    protected WebElement waitForElement(String cssSelector) {
+        try {
+            return wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(cssSelector)));
+        } catch (Exception e) {
+            System.err.println("Element bulunamadı: " + cssSelector);
+            return null;
+        }
+    }
+
+    /**
+     * Element tıklanabilir olmasını bekler
+     */
+    protected WebElement waitForElementToBeClickable(String cssSelector) {
+        try {
+            return wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector(cssSelector)));
+        } catch (Exception e) {
+            System.err.println("Element tıklanabilir değil: " + cssSelector);
+            return null;
+        }
+    }
+
+    /**
+     * URL değişimini bekler
+     */
+    protected boolean waitForUrlToContain(String text) {
+        try {
+            return wait.until(ExpectedConditions.urlContains(text));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Element görünür olmasını bekler
+     */
+    protected boolean waitForElementVisible(String cssSelector) {
+        try {
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(cssSelector)));
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Güvenli element tıklama
+     */
+    protected boolean safeClick(String cssSelector) {
+        try {
+            WebElement element = waitForElementToBeClickable(cssSelector);
+            if (element != null) {
+                element.click();
+                return true;
+            }
+        } catch (Exception e) {
+            System.err.println("Element tıklanamadı: " + cssSelector + " - " + e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Güvenli metin yazma
+     */
+    protected boolean safeType(String cssSelector, String text) {
+        try {
+            WebElement element = waitForElement(cssSelector);
+            if (element != null) {
+                element.clear();
+                element.sendKeys(text);
+                return true;
+            }
+        } catch (Exception e) {
+            System.err.println("Metin yazılamadı: " + cssSelector + " - " + e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Element metnini güvenli bir şekilde alır
+     */
+    protected String safeGetText(String cssSelector) {
+        try {
+            WebElement element = waitForElement(cssSelector);
+            return element != null ? element.getText() : "";
+        } catch (Exception e) {
+            return "";
         }
     }
 }
