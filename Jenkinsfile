@@ -1,10 +1,19 @@
 pipeline {
     agent any
 
-    // GitHub webhook trigger'ları ekleniyor
+    // GitHub webhook trigger'ları - iyileştirilmiş
     triggers {
         githubPush()
-        pollSCM('H/15 * * * *') // 15 dakikada bir kontrol et (backup)
+        pollSCM('H/5 * * * *') // 5 dakikada bir kontrol et (daha sık)
+    }
+
+    options {
+        // Build'i 30 dakika sonra timeout yap
+        timeout(time: 30, unit: 'MINUTES')
+        // Aynı anda sadece 1 build çalışsın
+        disableConcurrentBuilds()
+        // Build geçmişini sınırla
+        buildDiscarder(logRotator(numToKeepStr: '10'))
     }
 
     environment {
@@ -12,7 +21,31 @@ pipeline {
         PATH = "${JAVA_HOME}/bin:${PATH}"
         CI = 'true'
         SELENIUM_HEADLESS = 'true'
+        stage('0 - Webhook Test & Info') {
+            steps {
+                script {
+                    echo "🔗 WEBHOOK OTOMATIK TETİKLEME TESTİ"
+                    echo "=================================="
+
+                    // Build sebepini kontrol et
+                    echo "Build Cause: ${env.BUILD_CAUSE ?: 'Bilinmiyor'}"
+                    echo "Git Commit: ${env.GIT_COMMIT ?: 'Bulunamadı'}"
+                    echo "Git Branch: ${env.GIT_BRANCH ?: 'Bulunamadı'}"
+                    echo "Git URL: ${env.GIT_URL ?: 'Bulunamadı'}"
+
+                    // Webhook test scripti çalıştır
+                    if (fileExists('webhook-test.sh')) {
+                        sh 'chmod +x webhook-test.sh && ./webhook-test.sh'
+                    }
+
+                    echo "=================================="
+                }
+            }
+        }
+
         DISPLAY = ':99'
+        // Webhook test için environment variable
+        WEBHOOK_TRIGGERED = "${env.BUILD_CAUSE?.contains('GitHubPushCause') ? 'true' : 'false'}"
     }
 
     tools {
