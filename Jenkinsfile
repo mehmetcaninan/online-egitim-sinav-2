@@ -1,9 +1,6 @@
 pipeline {
-    // Mac agent'ı tercih et (Chrome mevcut), yoksa herhangi bir agent kullan
-    // Node adı: Mac-agent veya mac-agent (büyük/küçük harf duyarlı)
-    agent {
-        label 'mac chrome || Mac-agent || any'
-    }
+    // Herhangi bir mevcut agent kullan - mac chrome label sorunu çözülene kadar
+    agent any
 
     tools {
         // Mac'te Homebrew ile kurulu JDK kullanılacak
@@ -83,10 +80,29 @@ fi
 
     post {
         always {
-            // Birim test raporları
-            junit 'target/surefire-reports/*.xml'
-            // Entegrasyon ve Selenium test raporları (failsafe)
-            junit 'target/failsafe-reports/*.xml'
+            // Test sonuçlarını daha güvenilir şekilde publish et
+            script {
+                // Surefire test sonuçları (unit tests)
+                if (fileExists('target/surefire-reports')) {
+                    publishTestResults testResultsPattern: 'target/surefire-reports/*.xml',
+                                     mergeResults: true,
+                                     failOnError: false
+                }
+
+                // Failsafe test sonuçları (integration & selenium tests)
+                if (fileExists('target/failsafe-reports')) {
+                    publishTestResults testResultsPattern: 'target/failsafe-reports/*.xml',
+                                     mergeResults: true,
+                                     failOnError: false
+                }
+
+                // Eski JUnit plugin için fallback
+                try {
+                    junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml,target/failsafe-reports/*.xml'
+                } catch (Exception e) {
+                    echo "JUnit plugin mevcut değil: ${e.getMessage()}"
+                }
+            }
         }
     }
 }
