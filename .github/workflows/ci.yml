@@ -1,0 +1,71 @@
+name: Online Eğitim Sınav CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v3
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Cache Maven dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2
+        key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
+
+    - name: Run Unit Tests
+      run: ./mvnw test -DskipSelenium=true
+
+    - name: Run Integration Tests
+      run: ./mvnw failsafe:integration-test failsafe:verify -DskipSelenium=true
+
+    - name: Setup Chrome for Selenium
+      uses: browser-actions/setup-chrome@latest
+
+    - name: Setup Node.js for Frontend
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Install Frontend Dependencies
+      run: |
+        cd frontend
+        npm ci
+        npm run build
+        cd ..
+
+    - name: Run Selenium Tests
+      run: |
+        chmod +x run-selenium-tests.sh
+        ./run-selenium-tests.sh
+      env:
+        CI: true
+        SELENIUM_HEADLESS: true
+
+    - name: Publish Test Results
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: Test Results
+        path: 'target/surefire-reports/*.xml,target/failsafe-reports/*.xml'
+        reporter: java-junit
+
+    - name: Upload Coverage Reports
+      uses: codecov/codecov-action@v3
+      if: always()
+      with:
+        file: target/site/jacoco/jacoco.xml
