@@ -2,6 +2,11 @@ pipeline {
     // Herhangi bir mevcut agent kullan - mac chrome label sorunu çözülene kadar
     agent any
 
+    // GitHub webhook trigger'ı ekle
+    triggers {
+        githubPush()
+    }
+
     tools {
         // Mac'te Homebrew ile kurulu JDK kullanılacak
         // JDK17 yerine sistem JDK'sı kullanılabilir
