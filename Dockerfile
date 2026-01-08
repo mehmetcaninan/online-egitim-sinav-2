@@ -1,8 +1,8 @@
-FROM openjdk:17-jdk-slim
+FROM eclipse-temurin:17-jdk
 
 LABEL maintainer="Online Eğitim Sınav Sistemi"
 
-# CI ve Selenium için gerekli paketleri kur
+# Platform bağımsız paketleri kur
 RUN apt-get update && apt-get install -y \
     wget \
     curl \
@@ -14,21 +14,15 @@ RUN apt-get update && apt-get install -y \
     lsb-release \
     && rm -rf /var/lib/apt/lists/*
 
-# Google Chrome kurulumu
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg \
-    && echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
+# Chromium (platform bağımsız) kurulumu
+RUN apt-get update && apt-get install -y \
+    chromium-browser \
+    chromium-chromedriver \
     && rm -rf /var/lib/apt/lists/*
 
-# ChromeDriver'ı kur (Selenium için)
-RUN CHROME_VERSION=$(google-chrome --version | cut -d " " -f3 | cut -d "." -f1) \
-    && CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION}") \
-    && wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROMEDRIVER_VERSION}/chromedriver_linux64.zip" \
-    && unzip /tmp/chromedriver.zip -d /tmp/ \
-    && mv /tmp/chromedriver /usr/local/bin/ \
-    && chmod +x /usr/local/bin/chromedriver \
-    && rm /tmp/chromedriver.zip
+# Chrome/Chromium environment variables
+ENV CHROME_BIN=/usr/bin/chromium-browser
+ENV CHROMEDRIVER_PATH=/usr/bin/chromedriver
 
 # Çalışma dizinini ayarla
 WORKDIR /app
@@ -37,17 +31,23 @@ WORKDIR /app
 COPY mvnw mvnw.cmd pom.xml ./
 COPY .mvn .mvn
 
+# Maven wrapper'ı çalıştırılabilir yap
+RUN chmod +x ./mvnw
+
 # Dependency'leri önceden indir (cache için)
 RUN ./mvnw dependency:go-offline -B
 
 # Kaynak kodları kopyala
 COPY src src
 
-# Uygulamayı build et
+# Spring Boot executable JAR oluştur (tam Maven lifecycle)
 RUN ./mvnw clean package -DskipTests
 
-# JAR dosyasını kopyala
-RUN cp target/*.jar app.jar
+# Target klasörünün içeriğini kontrol et ve JAR dosyalarını listele
+RUN ls -la target/ && echo "=== JAR Dosyaları ===" && find target -name "*.jar" -ls
+
+# Spring Boot executable JAR'ı kopyala (fat JAR)
+RUN cp target/online_egitim_sinav_kod-0.0.1-SNAPSHOT.jar app.jar
 
 # Port'u aç (test ortamı için 8081)
 EXPOSE 8081

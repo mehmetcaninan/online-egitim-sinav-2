@@ -1,10 +1,11 @@
-version: '3.8'
+# Docker Compose file for Online Eğitim Sınav Sistemi - Mac M4 Optimized
 
 services:
   app:
     build: .
+    platform: linux/arm64
     ports:
-      - "8081:8081"
+      - "8082:8081"  # Host:8082 -> Container:8081
     environment:
       - SPRING_PROFILES_ACTIVE=docker
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/online_egitim_db
@@ -17,6 +18,7 @@ services:
 
   db:
     image: postgres:15
+    platform: linux/arm64
     environment:
       - POSTGRES_DB=online_egitim_db
       - POSTGRES_USER=postgres
@@ -29,21 +31,30 @@ services:
       - app-network
 
   selenium-hub:
-    image: selenium/hub:4.15.0
+    image: selenium/hub:4.26.0
     container_name: selenium-hub
+    platform: linux/arm64
     ports:
       - "4444:4444"
+    environment:
+      - SE_HUB_HOST=0.0.0.0
+      - SE_HUB_PORT=4444
     networks:
       - app-network
 
   selenium-chrome:
-    image: selenium/node-chrome:4.15.0
+    image: selenium/node-chromium:4.26.0
     container_name: selenium-chrome
+    platform: linux/arm64
     depends_on:
       - selenium-hub
     environment:
       - HUB_HOST=selenium-hub
       - HUB_PORT=4444
+      - SE_EVENT_BUS_HOST=selenium-hub
+      - SE_EVENT_BUS_PUBLISH_PORT=4442
+      - SE_EVENT_BUS_SUBSCRIBE_PORT=4443
+    shm_size: 2gb
     networks:
       - app-network
 
