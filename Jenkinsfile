@@ -290,13 +290,13 @@ EOF
 
                         # Frontend hazır olana kadar bekle
                         echo "🎨 Frontend hazırlığı kontrol ediliyor..."
-                        for i in {1..15}; do
+                        for i in {1..20}; do
                             if curl -f http://localhost:5173 >/dev/null 2>&1; then
                                 echo "✅ Frontend hazır (${i}. deneme)"
                                 break
                             fi
-                            echo "⏳ Frontend henüz hazır değil, bekleniyor... (${i}/15)"
-                            sleep 4
+                            echo "⏳ Frontend henüz hazır değil, bekleniyor... (${i}/20)"
+                            sleep 3
                         done
 
                         # Son kontroller
