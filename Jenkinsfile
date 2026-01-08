@@ -25,10 +25,10 @@ pipeline {
     }
 
     stages {
-        stage('🚀 Checkout & Info') {
+        stage(' Checkout & Info') {
             steps {
                 script {
-                    echo "🏠 LOCAL JENKINS PIPELINE"
+                    echo " LOCAL JENKINS PIPELINE"
                     echo "================================="
                     echo "Build Number: ${BUILD_NUMBER}"
                     echo "Git Branch: ${env.GIT_BRANCH ?: 'main'}"
@@ -48,7 +48,7 @@ pipeline {
         stage('🔧 Environment Setup') {
             steps {
                 script {
-                    echo "🏠 Local ortam hazırlanıyor..."
+                    echo " Local ortam hazırlanıyor..."
 
                     sh '''
                         echo "Local Docker ve Chrome kontrol ediliyor..."
@@ -58,7 +58,7 @@ pipeline {
 
                         # Docker Desktop'ın çalışıp çalışmadığını kontrol et
                         if ! pgrep -f "Docker Desktop" >/dev/null 2>&1; then
-                            echo "⚠️ Docker Desktop çalışmıyor, başlatılmaya çalışılıyor..."
+                            echo "️ Docker Desktop çalışmıyor, başlatılmaya çalışılıyor..."
                             open -a "Docker Desktop" || echo "Docker Desktop başlatılamadı"
                             sleep 15
                         fi
@@ -73,29 +73,29 @@ pipeline {
                         done
 
                         if [ -z "$DOCKER_PATH" ]; then
-                            echo "❌ Docker bulunamadı! Kontrol edilen konumlar:"
+                            echo " Docker bulunamadı! Kontrol edilen konumlar:"
                             echo "   - /usr/local/bin/docker"
                             echo "   - /opt/homebrew/bin/docker"
                             echo "   - /Applications/Docker.app/Contents/Resources/bin/docker"
-                            echo "🔗 Lütfen Docker Desktop'ı kurun: https://www.docker.com/products/docker-desktop"
+                            echo " Lütfen Docker Desktop'ı kurun: https://www.docker.com/products/docker-desktop"
                             exit 1
                         fi
 
-                        echo "✅ Docker bulundu: $DOCKER_PATH"
+                        echo " Docker bulundu: $DOCKER_PATH"
                         "$DOCKER_PATH" --version || {
-                            echo "❌ Docker çalışmıyor, Docker Desktop'ı başlatın"
+                            echo " Docker çalışmıyor, Docker Desktop'ı başlatın"
                             exit 1
                         }
 
                         # Docker Compose kontrol
                         if ! "$DOCKER_PATH" compose version >/dev/null 2>&1; then
-                            echo "❌ Docker Compose bulunamadı!"
+                            echo " Docker Compose bulunamadı!"
                             exit 1
                         fi
-                        echo "✅ Docker Compose mevcut: $("$DOCKER_PATH" compose version)"
+                        echo " Docker Compose mevcut: $("$DOCKER_PATH" compose version)"
 
                         # Docker credential problemini çöz
-                        echo "🔧 Docker credential ayarları düzenleniyor..."
+                        echo " Docker credential ayarları düzenleniyor..."
 
                         # Docker config dizinini oluştur
                         mkdir -p ~/.docker
@@ -110,28 +110,28 @@ pipeline {
 }
 EOF
 
-                        echo "✅ Docker credential ayarları düzenlendi"
+                        echo " Docker credential ayarları düzenlendi"
 
                         # Docker daemon hazır olana kadar bekle
-                        echo "📦 Docker daemon hazırlığı kontrol ediliyor..."
+                        echo " Docker daemon hazırlığı kontrol ediliyor..."
                         for i in {1..10}; do
                             if "$DOCKER_PATH" info >/dev/null 2>&1; then
-                                echo "✅ Docker daemon hazır (${i}. deneme)"
+                                echo " Docker daemon hazır (${i}. deneme)"
                                 break
                             fi
-                            echo "⏳ Docker daemon henüz hazır değil, bekleniyor... (${i}/10)"
+                            echo " Docker daemon henüz hazır değil, bekleniyor... (${i}/10)"
                             sleep 3
                         done
 
                         # Chrome Browser kontrol (macOS)
                         if [ ! -f "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ]; then
-                            echo "⚠️ Chrome browser bulunamadı, Selenium testleri başarısız olabilir"
+                            echo " Chrome browser bulunamadı, Selenium testleri başarısız olabilir"
                         else
-                            echo "✅ Chrome browser mevcut"
+                            echo " Chrome browser mevcut"
                         fi
 
                         # ChromeDriver - Sistem PATH'inde varsayıyoruz
-                        echo "💡 ChromeDriver sistem PATH'inde varsayılıyor (Chrome kurulu olduğu için)"
+                        echo " ChromeDriver sistem PATH'inde varsayılıyor (Chrome kurulu olduğu için)"
 
                         echo "Önceki container'ları temizliyorum..."
 
@@ -153,18 +153,18 @@ EOF
                         error "docker-compose.yml dosyası bulunamadı!"
                     }
 
-                    echo "✅ Local ortam hazırlandı"
+                    echo " Local ortam hazırlandı"
                 }
             }
         }
 
-        stage('🏗️ Build & Deploy') {
+        stage('️ Build & Deploy') {
             steps {
                 script {
-                    echo "🏗️ Local Docker Compose ile servisler başlatılıyor..."
+                    echo "️ Local Docker Compose ile servisler başlatılıyor..."
 
                     sh '''
-                        echo "🔧 Local Docker Compose build ve start..."
+                        echo " Local Docker Compose build ve start..."
 
                         # Docker PATH'ini yükle
                         if [ -f "docker_env.txt" ]; then
@@ -193,13 +193,13 @@ EOF
                         sleep 15
 
                         # Container durumlarını kontrol et
-                        echo "📋 Container durumları:"
+                        echo " Container durumları:"
                         "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} ps
 
                         # App container kontrolü
                         APP_CONTAINER=$("$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} ps -q app)
                         if [ -z "$APP_CONTAINER" ]; then
-                            echo "❌ Backend container bulunamadı!"
+                            echo " Backend container bulunamadı!"
                             "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs app
                             exit 1
                         fi
@@ -207,12 +207,12 @@ EOF
                         # Frontend container kontrolü
                         FRONTEND_CONTAINER=$("$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} ps -q frontend)
                         if [ -z "$FRONTEND_CONTAINER" ]; then
-                            echo "❌ Frontend container bulunamadı!"
+                            echo " Frontend container bulunamadı!"
                             "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs frontend
                             exit 1
                         fi
 
-                        echo "✅ Backend ve Frontend başarıyla çalışıyor"
+                        echo " Backend ve Frontend başarıyla çalışıyor"
                         echo "Backend Container ID: $APP_CONTAINER"
                         echo "Frontend Container ID: $FRONTEND_CONTAINER"
                         echo "Backend URL: http://localhost:8081"
@@ -222,10 +222,10 @@ EOF
             }
         }
 
-        stage('🧪 Run Tests') {
+        stage(' Run Tests') {
             steps {
                 script {
-                    echo "🧪 Local ortamda testler çalıştırılıyor..."
+                    echo " Local ortamda testler çalıştırılıyor..."
 
                     sh '''
                         # Docker PATH'ini yükle
@@ -249,84 +249,84 @@ EOF
                         echo "Frontend Container: $FRONTEND_CONTAINER"
 
                         # Backend hazır olana kadar bekle
-                        echo "📦 Backend hazırlığı kontrol ediliyor..."
+                        echo " Backend hazırlığı kontrol ediliyor..."
                         for i in {1..20}; do
                             if "$DOCKER_PATH" exec "$APP_CONTAINER" curl -f http://localhost:8081/actuator/health >/dev/null 2>&1; then
-                                echo "✅ Backend hazır (${i}. deneme)"
+                                echo " Backend hazır (${i}. deneme)"
                                 break
                             fi
-                            echo "⏳ Backend henüz hazır değil, bekleniyor... (${i}/20)"
+                            echo " Backend henüz hazır değil, bekleniyor... (${i}/20)"
                             sleep 3
                         done
 
                         # Frontend hazır olana kadar bekle
-                        echo "🎨 Frontend hazırlığı kontrol ediliyor..."
+                        echo " Frontend hazırlığı kontrol ediliyor..."
                         for i in {1..20}; do
                             if curl -f http://localhost:5173 >/dev/null 2>&1; then
-                                echo "✅ Frontend hazır (${i}. deneme)"
+                                echo " Frontend hazır (${i}. deneme)"
                                 break
                             fi
-                            echo "⏳ Frontend henüz hazır değil, bekleniyor... (${i}/20)"
+                            echo " Frontend henüz hazır değil, bekleniyor... (${i}/20)"
                             sleep 3
                         done
 
                         # Son kontroller
                         if ! "$DOCKER_PATH" exec "$APP_CONTAINER" curl -f http://localhost:8081/actuator/health >/dev/null 2>&1; then
-                            echo "❌ Backend hazır değil! Logları kontrol ediliyor..."
+                            echo " Backend hazır değil! Logları kontrol ediliyor..."
                             "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs app
                             exit 1
                         fi
 
                         if ! curl -f http://localhost:5173 >/dev/null 2>&1; then
-                            echo "❌ Frontend hazır değil! Logları kontrol ediliyor..."
+                            echo " Frontend hazır değil! Logları kontrol ediliyor..."
                             "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs frontend
                             exit 1
                         fi
 
                         # Unit testleri çalıştır - HATA DURUMUNDA PIPELINE DURDUR
-                        echo "🔬 Unit testler çalıştırılıyor..."
+                        echo " Unit testler çalıştırılıyor..."
                         if ! "$DOCKER_PATH" exec "$APP_CONTAINER" ./mvnw test -DskipSelenium=true -Dmaven.test.failure.ignore=false; then
-                            echo "❌ Unit testler BAŞARISIZ! Pipeline durduruluyor."
+                            echo " Unit testler BAŞARISIZ! Pipeline durduruluyor."
                             "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs app
                             exit 1
                         fi
-                        echo "✅ Unit testler başarılı"
+                        echo " Unit testler başarılı"
 
                         # Integration testleri çalıştır - HATA DURUMUNDA PIPELINE DURDUR
-                        echo "🔗 Integration testler çalıştırılıyor..."
+                        echo " Integration testler çalıştırılıyor..."
                         if ! "$DOCKER_PATH" exec "$APP_CONTAINER" ./mvnw failsafe:integration-test failsafe:verify -DskipSelenium=true -Dmaven.test.failure.ignore=false; then
-                            echo "❌ Integration testler BAŞARISIZ! Pipeline durduruluyor."
+                            echo " Integration testler BAŞARISIZ! Pipeline durduruluyor."
                             "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs app
                             exit 1
                         fi
-                        echo "✅ Integration testler başarılı"
+                        echo " Integration testler başarılı"
 
                         # Selenium testleri - Local Chrome ile Frontend'e karşı
-                        echo "🌐 Selenium testler çalıştırılıyor (Frontend: http://localhost:5173)..."
+                        echo " Selenium testler çalıştırılıyor (Frontend: http://localhost:5173)..."
                         # Chrome kurulu olduğu için ChromeDriver'ın da mevcut olduğunu varsayıyoruz
                         ./mvnw test -Dtest="*SeleniumTest" \\
                             -Dapp.baseUrl=http://localhost:5173 \\
                             -Dmaven.test.failure.ignore=false \\
                             -Dselenium.headless=true || {
-                            echo "❌ Selenium testler BAŞARISIZ! Pipeline durduruluyor."
+                            echo " Selenium testler BAŞARISIZ! Pipeline durduruluyor."
                             echo "Frontend Logs:"
                             "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs frontend
                             echo "Backend Logs:"
                             "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs app
                             exit 1
                         }
-                        echo "✅ Selenium testler başarılı (Frontend: http://localhost:5173)"
+                        echo " Selenium testler başarılı (Frontend: http://localhost:5173)"
                     '''
 
-                    echo "✅ Tüm testler başarıyla tamamlandı"
+                    echo " Tüm testler başarıyla tamamlandı"
                 }
             }
         }
 
-        stage('📊 Test Results') {
+        stage(' Test Results') {
             steps {
                 script {
-                    echo "📊 Test sonuçları toplanıyor..."
+                    echo " Test sonuçları toplanıyor..."
 
                     sh '''
                         # Docker PATH'ini yükle
@@ -347,8 +347,8 @@ EOF
 
                         # Container'dan test sonuçlarını kopyala
                         echo "Docker container'dan test sonuçları kopyalanıyor..."
-                        "$DOCKER_PATH" cp "$APP_CONTAINER:/app/target/surefire-reports" ./surefire-reports || echo "⚠️ Container'dan surefire reports kopyalanamadı"
-                        "$DOCKER_PATH" cp "$APP_CONTAINER:/app/target/failsafe-reports" ./failsafe-reports || echo "⚠️ Container'dan failsafe reports kopyalanamadı"
+                        "$DOCKER_PATH" cp "$APP_CONTAINER:/app/target/surefire-reports" ./surefire-reports || echo " Container'dan surefire reports kopyalanamadı"
+                        "$DOCKER_PATH" cp "$APP_CONTAINER:/app/target/failsafe-reports" ./failsafe-reports || echo "️ Container'dan failsafe reports kopyalanamadı"
 
                         # Local'den de test sonuçları al (Selenium için)
                         echo "Local test sonuçları kontrol ediliyor..."
@@ -360,15 +360,15 @@ EOF
                         fi
 
                         # Screenshots kopyala
-                        "$DOCKER_PATH" cp "$APP_CONTAINER:/app/screenshots" ./screenshots || echo "⚠️ Screenshots bulunamadı"
+                        "$DOCKER_PATH" cp "$APP_CONTAINER:/app/screenshots" ./screenshots || echo "️ Screenshots bulunamadı"
                         if [ -d "./screenshots" ]; then
                             cp -r ./screenshots/* ./screenshots/ 2>/dev/null || true
                         fi
 
-                        echo "✅ Test sonuçları toplandı"
+                        echo " Test sonuçları toplandı"
 
                         # Sonuçları listele
-                        echo "📂 Test sonuç dosyaları:"
+                        echo " Test sonuç dosyaları:"
                         [ -d "surefire-reports" ] && ls -la surefire-reports/ || echo "Surefire reports yok"
                         [ -d "failsafe-reports" ] && ls -la failsafe-reports/ || echo "Failsafe reports yok"
                         [ -d "screenshots" ] && ls -la screenshots/ || echo "Screenshots yok"
@@ -381,20 +381,20 @@ EOF
     post {
         always {
             script {
-                echo "🧹 Local ortam temizlik işlemleri..."
+                echo " Local ortam temizlik işlemleri..."
 
                 // Test sonuçlarını publish et
                 try {
                     if (fileExists('surefire-reports')) {
                         junit 'surefire-reports/*.xml'
-                        echo "📊 Unit test sonuçları Jenkins'e yüklendi"
+                        echo " Unit test sonuçları Jenkins'e yüklendi"
                     }
                     if (fileExists('failsafe-reports')) {
                         junit 'failsafe-reports/*.xml'
-                        echo "📊 Integration test sonuçları Jenkins'e yüklendi"
+                        echo " Integration test sonuçları Jenkins'e yüklendi"
                     }
                 } catch (Exception e) {
-                    echo "⚠️ Test sonuçları publish hatası: ${e.getMessage()}"
+                    echo "️ Test sonuçları publish hatası: ${e.getMessage()}"
                 }
 
                 // Screenshots'ları arşivle
@@ -404,12 +404,12 @@ EOF
                         echo "📷 Screenshot'lar arşivlendi"
                     }
                 } catch (Exception e) {
-                    echo "⚠️ Screenshot arşivleme hatası: ${e.getMessage()}"
+                    echo "️ Screenshot arşivleme hatası: ${e.getMessage()}"
                 }
 
                 // Local Docker temizliği
                 sh '''
-                    echo "🐳 Local Docker container'ları temizleniyor..."
+                    echo " Local Docker container'ları temizleniyor..."
 
                     # Docker PATH'ini yükle
                     if [ -f "docker_env.txt" ]; then
@@ -431,22 +431,22 @@ EOF
                         # Local ortamda sadece bu build'e ait volume'ları temizle
                         "$DOCKER_PATH" volume ls -q | grep "${COMPOSE_PROJECT_NAME}" | xargs -r "$DOCKER_PATH" volume rm || true
                     else
-                        echo "⚠️ Docker bulunamadı, manuel temizlik gerekebilir"
+                        echo "️ Docker bulunamadı, manuel temizlik gerekebilir"
                     fi
 
-                    echo "✅ Local Docker temizliği tamamlandı"
+                    echo " Local Docker temizliği tamamlandı"
                 '''
             }
         }
 
         success {
-            echo "🎉 LOCAL PIPELINE BAŞARILI! Tüm testler geçti."
-            echo "🌐 Uygulama: http://localhost:8081"
-            echo "🗄️ H2 Console: http://localhost:8082"
+            echo " LOCAL PIPELINE BAŞARILI! Tüm testler geçti."
+            echo " Uygulama: http://localhost:8081"
+            echo "️ H2 Console: http://localhost:8082"
         }
 
         failure {
-            echo "❌ LOCAL PIPELINE BAŞARISIZ! Hatalar var, lütfen kontrol edin."
+            echo " LOCAL PIPELINE BAŞARISIZ! Hatalar var, lütfen kontrol edin."
         }
     }
 }
