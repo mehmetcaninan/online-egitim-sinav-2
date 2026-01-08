@@ -1,51 +1,40 @@
 pipeline {
     agent any
 
-    // GitHub webhook trigger'ları - iyileştirilmiş
     triggers {
         githubPush()
-        pollSCM('H/5 * * * *') // 5 dakikada bir kontrol et (daha sık)
     }
 
     options {
-        // Build'i 30 dakika sonra timeout yap
-        timeout(time: 30, unit: 'MINUTES')
-        // Aynı anda sadece 1 build çalışsın
+        timeout(time: 15, unit: 'MINUTES') // Kısa timeout
         disableConcurrentBuilds()
-        // Build geçmişini sınırla
         buildDiscarder(logRotator(numToKeepStr: '10'))
     }
 
     environment {
-        COMPOSE_PROJECT_NAME = "jenkins-${BUILD_NUMBER}"
+        COMPOSE_PROJECT_NAME = "jenkins-ci-${BUILD_NUMBER}"
         DOCKER_BUILDKIT = '1'
         CI = 'true'
         SELENIUM_HEADLESS = 'true'
     }
 
     stages {
-        stage('0 - Webhook Test & Info') {
+        stage('1 - Checkout & Info') {
             steps {
                 script {
-                    echo "🐳 DOCKER-BASED JENKINS PIPELINE"
+                    echo "🐳 DOCKER-COMPOSE JENKINS PIPELINE"
                     echo "================================="
                     echo "Build Number: ${BUILD_NUMBER}"
-                    echo "Git Commit: ${env.GIT_COMMIT ?: 'Bulunamadı'}"
-                    echo "Git Branch: ${env.GIT_BRANCH ?: 'Bulunamadı'}"
+                    echo "Git Branch: ${env.GIT_BRANCH ?: 'main'}"
                     echo "Docker Compose Project: ${COMPOSE_PROJECT_NAME}"
 
-                    // Webhook test scripti çalıştır
+                    checkout scm
+
                     if (fileExists('webhook-test.sh')) {
-                        sh 'chmod +x webhook-test.sh && ./webhook-test.sh'
+                        sh 'chmod +x webhook-test.sh && ./webhook-test.sh || true'
                     }
                     echo "================================="
                 }
-            }
-        }
-
-        stage('1 - Checkout (GitHub)') {
-            steps {
-                checkout scm
             }
         }
 
@@ -54,31 +43,24 @@ pipeline {
                 script {
                     echo "🐳 Docker ortamı hazırlanıyor..."
 
-                    // Önceki container'ları temizle
                     sh '''
                         echo "Önceki container'ları temizliyorum..."
 
-                        # Modern docker compose syntax kullan
-                        if command -v docker-compose &> /dev/null; then
-                            docker-compose -p ${COMPOSE_PROJECT_NAME} down --volumes --remove-orphans || true
-                        elif docker compose version &> /dev/null; then
-                            docker compose -p ${COMPOSE_PROJECT_NAME} down --volumes --remove-orphans || true
-                        else
-                            echo "⚠️ Docker Compose bulunamadı, manuel temizlik yapılıyor..."
-                            docker ps -a -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}" | xargs -r docker rm -f || true
-                            docker network ls -q --filter "name=${COMPOSE_PROJECT_NAME}" | xargs -r docker network rm || true
-                            docker volume ls -q --filter "name=${COMPOSE_PROJECT_NAME}" | xargs -r docker volume rm || true
-                        fi
+                        # Sadece jenkins ile ilgili container'ları temizle
+                        docker ps -a | grep "jenkins-ci" | awk '{print $1}' | xargs -r docker rm -f || true
 
-                        docker system prune -f || true
+                        # Sadece dangling image'ları temizle - mevcut image'ları koru
+                        docker image prune -f || true
+
+                        # Network temizliği
+                        docker network prune -f || true
                     '''
 
-                    // Docker Compose dosyasını kontrol et
                     if (!fileExists('docker-compose.yml')) {
                         error "docker-compose.yml dosyası bulunamadı!"
                     }
 
-                    echo "✅ Docker ortamı hazır"
+                    echo "✅ Docker ortamı hazırlandı"
                 }
             }
         }
@@ -86,274 +68,142 @@ pipeline {
         stage('3 - Build & Start Services') {
             steps {
                 script {
-                    echo "🏗️ Docker servisleri build ediliyor ve başlatılıyor..."
+                    echo "🏗️ Docker Compose ile servisler başlatılıyor..."
 
                     sh '''
-                        # Docker Compose varlığını kontrol et ve çalıştır
-                        echo "🔍 Docker Compose kontrol ediliyor..."
+                        echo "🔧 Docker Compose build ve start..."
 
-                        # Manuel Docker komutlarına direkt geç - Docker Compose problemi var
-                        COMPOSE_CMD=""
-                        echo "⚠️ Jenkins ortamında Docker Compose sorunlu - Manuel Docker komutları kullanılıyor"
+                        # Sadece backend servisi için build ve start (frontend ve db'yi skip et)
+                        docker-compose -p ${COMPOSE_PROJECT_NAME} build --parallel app
 
-                        # Manuel Docker komutları
-                        echo "🔧 Manuel Docker komutları ile başlatılıyor..."
+                        # Sadece gerekli servisleri başlat
+                        docker-compose -p ${COMPOSE_PROJECT_NAME} up -d app db
 
-                        # Önceki container'ları temizle
-                        echo "🧹 Önceki container'ları temizliyorum..."
-                        docker stop jenkins-31-app-1 jenkins-31-selenium-chrome jenkins-31-selenium-hub jenkins-31-db-1 2>/dev/null || true
-                        docker rm jenkins-31-app-1 jenkins-31-selenium-chrome jenkins-31-selenium-hub jenkins-31-db-1 2>/dev/null || true
-                        docker network rm jenkins-31_app-network 2>/dev/null || true
+                        # Kısa bekleme - servislerin başlaması için
+                        echo "Servisler başlatıldı, hazır olması bekleniyor..."
+                        sleep 8
 
-                        # Port çakışmasını çöz - farklı portlar kullan
-                        DB_PORT=5433
-                        SELENIUM_PORT=4445
-                        APP_PORT=8083
-                        FRONTEND_PORT=3001
-
-                        echo "📦 Portlar: DB=$DB_PORT, Selenium=$SELENIUM_PORT, App=$APP_PORT, Frontend=$FRONTEND_PORT"
-
-                        # Network oluştur
-                        docker network create ${COMPOSE_PROJECT_NAME}_app-network || true
-
-                        # Database container'ı başlat - farklı port
-                        echo "🗄️ PostgreSQL başlatılıyor (Port: $DB_PORT)..."
-                        docker run -d \\
-                            --name ${COMPOSE_PROJECT_NAME}-db-1 \\
-                            --network ${COMPOSE_PROJECT_NAME}_app-network \\
-                            -e POSTGRES_DB=online_egitim_db \\
-                            -e POSTGRES_USER=postgres \\
-                            -e POSTGRES_PASSWORD=postgres \\
-                            -p $DB_PORT:5432 \\
-                            --platform linux/arm64 \\
-                            postgres:15
-
-                        echo "Database başlatıldı, hazır olması bekleniyor..."
-                        sleep 15
-
-                        # Database hazır mı kontrol et
-                        timeout 60 bash -c "until docker exec ${COMPOSE_PROJECT_NAME}-db-1 pg_isready -U postgres; do echo 'Database bekleniyor...'; sleep 2; done"
-                        echo "✅ Database hazır"
-
-                        # Selenium Hub başlat - farklı port
-                        echo "🧪 Selenium Hub başlatılıyor (Port: $SELENIUM_PORT)..."
-                        docker run -d \\
-                            --name ${COMPOSE_PROJECT_NAME}-selenium-hub \\
-                            --network ${COMPOSE_PROJECT_NAME}_app-network \\
-                            -p $SELENIUM_PORT:4444 \\
-                            -e SE_HUB_HOST=0.0.0.0 \\
-                            -e SE_HUB_PORT=4444 \\
-                            --platform linux/arm64 \\
-                            selenium/hub:4.26.0
-
-                        # Selenium Chrome başlat
-                        echo "🌐 Selenium Chrome başlatılıyor..."
-                        docker run -d \\
-                            --name ${COMPOSE_PROJECT_NAME}-selenium-chrome \\
-                            --network ${COMPOSE_PROJECT_NAME}_app-network \\
-                            -e HUB_HOST=${COMPOSE_PROJECT_NAME}-selenium-hub \\
-                            -e HUB_PORT=4444 \\
-                            -e SE_EVENT_BUS_HOST=${COMPOSE_PROJECT_NAME}-selenium-hub \\
-                            -e SE_EVENT_BUS_PUBLISH_PORT=4442 \\
-                            -e SE_EVENT_BUS_SUBSCRIBE_PORT=4443 \\
-                            --shm-size=2gb \\
-                            --platform linux/arm64 \\
-                            selenium/node-chromium:4.26.0
-
-                        echo "Selenium servisleri başlatıldı"
-                        sleep 10
-
-                        # Backend App build et
-                        echo "🏗️ Backend uygulaması build ediliyor..."
-                        docker build --platform linux/arm64 -t ${COMPOSE_PROJECT_NAME}-app .
-
-                        # Backend App başlat - farklı port
-                        echo "🚀 Backend uygulaması başlatılıyor (Port: $APP_PORT)..."
-                        docker run -d \\
-                            --name ${COMPOSE_PROJECT_NAME}-app-1 \\
-                            --network ${COMPOSE_PROJECT_NAME}_app-network \\
-                            -e SPRING_PROFILES_ACTIVE=docker \\
-                            -e SPRING_DATASOURCE_URL=jdbc:postgresql://${COMPOSE_PROJECT_NAME}-db-1:5432/online_egitim_db \\
-                            -e SPRING_DATASOURCE_USERNAME=postgres \\
-                            -e SPRING_DATASOURCE_PASSWORD=postgres \\
-                            -p $APP_PORT:8081 \\
-                            --platform linux/arm64 \\
-                            ${COMPOSE_PROJECT_NAME}-app
-
-                        echo "Backend uygulama başlatıldı, hazır olması bekleniyor..."
-                        sleep 25
-
-                        # Frontend App build et
-                        echo "🎨 Frontend uygulaması build ediliyor..."
-                        docker build --platform linux/arm64 -f frontend/Dockerfile -t ${COMPOSE_PROJECT_NAME}-frontend ./frontend
-
-                        # Frontend App başlat - farklı port
-                        echo "🌐 Frontend uygulaması başlatılıyor (Port: $FRONTEND_PORT)..."
-                        docker run -d \\
-                            --name ${COMPOSE_PROJECT_NAME}-frontend-1 \\
-                            --network ${COMPOSE_PROJECT_NAME}_app-network \\
-                            -e NODE_ENV=production \\
-                            -e VITE_API_BASE_URL=http://localhost:$APP_PORT \\
-                            -p $FRONTEND_PORT:80 \\
-                            --platform linux/arm64 \\
-                            ${COMPOSE_PROJECT_NAME}-frontend
-
-                        echo "Frontend uygulama başlatıldı"
-                        sleep 15
-
-                        # Container'ların durumunu kontrol et
+                        # Container durumunu kontrol et
                         echo "📋 Container durumları:"
-                        docker ps --filter "name=${COMPOSE_PROJECT_NAME}"
+                        docker-compose -p ${COMPOSE_PROJECT_NAME} ps
 
-                        echo "✅ Tüm servisler manuel olarak başlatıldı"
-                        echo "🌐 Erişim noktaları:"
-                        echo "  - Database: localhost:$DB_PORT"
-                        echo "  - Selenium Hub: localhost:$SELENIUM_PORT"
-                        echo "  - Backend API: localhost:$APP_PORT"
-                        echo "  - Frontend: localhost:$FRONTEND_PORT"
-                    '''
-
-                    echo "✅ Tüm servisler çalışıyor"
-                }
-            }
-        }
-
-        stage('4 - Health Checks') {
-            steps {
-                script {
-                    echo "🏥 Servis sağlık kontrolleri..."
-
-                    sh '''
-                        # Dinamik portları tanımla (stage 3'teki ile aynı)
-                        DB_PORT=5433
-                        SELENIUM_PORT=4445
-                        APP_PORT=8083
-                        FRONTEND_PORT=3001
-
-                        # Container durumlarını kontrol et
-                        echo "📋 Çalışan container'lar:"
-                        docker ps --filter "name=${COMPOSE_PROJECT_NAME}"
-
-                        # Database sağlık kontrolü
-                        echo "🗄️ Database bağlantısı kontrol ediliyor (Port: $DB_PORT)..."
-                        docker exec ${COMPOSE_PROJECT_NAME}-db-1 pg_isready -U postgres || {
-                            echo "⚠️ Database hazır değil, bekleniyor..."
-                            sleep 10
-                            docker exec ${COMPOSE_PROJECT_NAME}-db-1 pg_isready -U postgres
-                        }
-                        echo "✅ Database sağlık kontrolü başarılı"
-
-                        # Selenium Hub kontrolü - güncellenmiş port
-                        echo "🧪 Selenium Hub kontrol ediliyor (Port: $SELENIUM_PORT)..."
-                        timeout 30 bash -c "until curl -s http://localhost:$SELENIUM_PORT/wd/hub/status; do echo 'Selenium Hub bekleniyor...'; sleep 2; done" || echo "⚠️ Selenium Hub timeout - devam ediliyor"
-                        echo "✅ Selenium Hub sağlık kontrolü tamamlandı"
-
-                        # Backend uygulama kontrolü - güncellenmiş port
-                        echo "🚀 Backend uygulama kontrol ediliyor (Port: $APP_PORT)..."
-                        timeout 60 bash -c "until curl -s http://localhost:$APP_PORT/actuator/health; do echo 'Backend health endpoint bekleniyor...'; sleep 5; done" || {
-                            echo "⚠️ Backend health endpoint bulunamadı, ana sayfa kontrol ediliyor..."
-                            timeout 60 bash -c "until curl -s http://localhost:$APP_PORT/; do echo 'Backend ana sayfa bekleniyor...'; sleep 5; done" || {
-                                echo "⚠️ Backend ana sayfa da erişilemiyor, container logları:"
-                                docker logs --tail 10 ${COMPOSE_PROJECT_NAME}-app-1
-                                echo "🔄 Backend başlatılması için daha fazla bekleniyor..."
-                                sleep 30
-                                curl -s http://localhost:$APP_PORT/ || echo "❌ Backend hala erişilemiyor"
-                            }
-                        }
-                        echo "✅ Backend sağlık kontrolü tamamlandı"
-
-                        # Frontend uygulama kontrolü - yeni eklenen
-                        echo "🌐 Frontend uygulama kontrol ediliyor (Port: $FRONTEND_PORT)..."
-                        timeout 60 bash -c "until curl -s http://localhost:$FRONTEND_PORT/; do echo 'Frontend ana sayfa bekleniyor...'; sleep 5; done" || {
-                            echo "⚠️ Frontend ana sayfa da erişilemiyor, container logları:"
-                            docker logs --tail 10 ${COMPOSE_PROJECT_NAME}-frontend-1
-                            echo "🔄 Frontend başlatılması için daha fazla bekleniyor..."
-                            sleep 30
-                            curl -s http://localhost:$FRONTEND_PORT/ || echo "❌ Frontend hala erişilemiyor"
-                        }
-                        echo "✅ Frontend sağlık kontrolü tamamlandı"
-
-                        echo "🎉 Tüm sağlık kontrolleri tamamlandı!"
-                        echo "🌐 Erişim Noktaları:"
-                        echo "  - Database: localhost:$DB_PORT"
-                        echo "  - Selenium Hub: localhost:$SELENIUM_PORT"
-                        echo "  - Application: localhost:$APP_PORT"
-                        echo "  - Frontend: localhost:$FRONTEND_PORT"
-                    '''
-
-                    echo "✅ Tüm servisler sağlıklı"
-                }
-            }
-        }
-
-        stage('5 - Run Tests in Docker') {
-            steps {
-                script {
-                    echo "🧪 Docker ortamında testler çalıştırılıyor..."
-
-                    sh '''
-                        # App container'ın adını bul
-                        APP_CONTAINER="${COMPOSE_PROJECT_NAME}-app-1"
-
-                        echo "Test container: $APP_CONTAINER"
-
-                        # Container'ın çalışır durumda olduğunu kontrol et
-                        if ! docker ps --format "table {{.Names}}" | grep -q "$APP_CONTAINER"; then
-                            echo "❌ App container çalışmıyor!"
-                            docker ps --filter "name=${COMPOSE_PROJECT_NAME}"
+                        # App container'ın çalıştığını doğrula
+                        APP_CONTAINER=$(docker-compose -p ${COMPOSE_PROJECT_NAME} ps -q app)
+                        if [ -z "$APP_CONTAINER" ]; then
+                            echo "❌ App container bulunamadı!"
+                            docker-compose -p ${COMPOSE_PROJECT_NAME} logs app
                             exit 1
                         fi
 
-                        echo "📦 Container durumu:"
-                        docker logs --tail 20 "$APP_CONTAINER"
+                        # DB container'ın çalıştığını doğrula
+                        DB_CONTAINER=$(docker-compose -p ${COMPOSE_PROJECT_NAME} ps -q db)
+                        if [ -z "$DB_CONTAINER" ]; then
+                            echo "❌ DB container bulunamadı!"
+                            docker-compose -p ${COMPOSE_PROJECT_NAME} logs db
+                            exit 1
+                        fi
 
-                        # Unit testleri Docker container içinde çalıştır
-                        echo "🔬 Unit testler çalıştırılıyor..."
-                        docker exec "$APP_CONTAINER" ./mvnw test -DskipSelenium=true || {
-                            echo "⚠️ Unit testlerde hata, devam ediliyor..."
-                        }
-
-                        # Integration testleri
-                        echo "🔗 Integration testler çalıştırılıyor..."
-                        docker exec "$APP_CONTAINER" ./mvnw failsafe:integration-test failsafe:verify -DskipSelenium=true || {
-                            echo "⚠️ Integration testlerde hata, devam ediliyor..."
-                        }
-
-                        # Selenium testleri - opsiyonel
-                        echo "🌐 Selenium testler çalıştırılıyor..."
-                        docker exec "$APP_CONTAINER" ./mvnw test -Dtest="*SeleniumTest" -Dwebdriver.remote.url=http://${COMPOSE_PROJECT_NAME}-selenium-hub:4444/wd/hub -Dapp.baseUrl=http://${COMPOSE_PROJECT_NAME}-app-1:8081 || {
-                            echo "⚠️ Selenium testlerde hata - bu normal olabilir"
-                        }
+                        echo "✅ Servisler başarıyla çalışıyor"
+                        echo "App Container ID: $APP_CONTAINER"
+                        echo "DB Container ID: $DB_CONTAINER"
                     '''
-
-                    echo "✅ Testler tamamlandı"
                 }
             }
         }
 
-        stage('6 - Extract Test Results') {
+        stage('4 - Wait for Services & Run Tests') {
+            steps {
+                script {
+                    echo "🧪 Servis hazırlığı kontrol ediliyor ve testler çalıştırılıyor..."
+
+                    sh '''
+                        APP_CONTAINER=$(docker-compose -p ${COMPOSE_PROJECT_NAME} ps -q app)
+
+                        echo "Test container: $APP_CONTAINER"
+
+                        # DB hazır olana kadar bekle
+                        echo "📦 Database hazırlığı kontrol ediliyor..."
+                        for i in {1..12}; do
+                            if docker-compose -p ${COMPOSE_PROJECT_NAME} exec -T db pg_isready -U postgres >/dev/null 2>&1; then
+                                echo "✅ Database hazır (${i}. deneme)"
+                                break
+                            fi
+                            echo "⏳ Database henüz hazır değil, bekleniyor... (${i}/12)"
+                            sleep 3
+                        done
+
+                        # Backend hazır olana kadar bekle
+                        echo "📦 Backend hazırlığı kontrol ediliyor..."
+                        for i in {1..10}; do
+                            if docker exec "$APP_CONTAINER" curl -f http://localhost:8081/actuator/health >/dev/null 2>&1; then
+                                echo "✅ Backend hazır (${i}. deneme)"
+                                break
+                            fi
+                            echo "⏳ Backend henüz hazır değil, bekleniyor... (${i}/10)"
+                            sleep 4
+                        done
+
+                        # Son kontrol
+                        if ! docker exec "$APP_CONTAINER" curl -f http://localhost:8081/actuator/health >/dev/null 2>&1; then
+                            echo "❌ Backend hazır değil! Logları kontrol ediliyor..."
+                            docker-compose -p ${COMPOSE_PROJECT_NAME} logs app
+                            exit 1
+                        fi
+
+                        # Unit testleri çalıştır - HATA DURUMUNDA PIPELINE DURDUR
+                        echo "🔬 Unit testler çalıştırılıyor..."
+                        if ! docker exec "$APP_CONTAINER" ./mvnw test -DskipSelenium=true -Dmaven.test.failure.ignore=false; then
+                            echo "❌ Unit testler BAŞARISIZ! Pipeline durduruluyor."
+                            docker-compose -p ${COMPOSE_PROJECT_NAME} logs app
+                            exit 1
+                        fi
+                        echo "✅ Unit testler başarılı"
+
+                        # Integration testleri çalıştır - HATA DURUMUNDA PIPELINE DURDUR
+                        echo "🔗 Integration testler çalıştırılıyor..."
+                        if ! docker exec "$APP_CONTAINER" ./mvnw failsafe:integration-test failsafe:verify -DskipSelenium=true -Dmaven.test.failure.ignore=false; then
+                            echo "❌ Integration testler BAŞARISIZ! Pipeline durduruluyor."
+                            docker-compose -p ${COMPOSE_PROJECT_NAME} logs app
+                            exit 1
+                        fi
+                        echo "✅ Integration testler başarılı"
+
+                        # Selenium testleri - HATA DURUMUNDA PIPELINE DURDUR
+                        echo "🌐 Selenium testler çalıştırılıyor..."
+                        if ! docker exec "$APP_CONTAINER" ./mvnw test -Dtest="*SeleniumTest" -Dwebdriver.chrome.driver=/usr/bin/chromedriver -Dapp.baseUrl=http://localhost:8081 -Dmaven.test.failure.ignore=false; then
+                            echo "❌ Selenium testler BAŞARISIZ! Pipeline durduruluyor."
+                            docker-compose -p ${COMPOSE_PROJECT_NAME} logs app
+                            exit 1
+                        fi
+                        echo "✅ Selenium testler başarılı"
+                    '''
+
+                    echo "✅ Tüm testler başarıyla tamamlandı"
+                }
+            }
+        }
+
+        stage('5 - Extract Test Results') {
             steps {
                 script {
                     echo "📊 Test sonuçları Docker'dan çıkarılıyor..."
 
                     sh '''
-                        APP_CONTAINER="${COMPOSE_PROJECT_NAME}-app-1"
+                        APP_CONTAINER=$(docker-compose -p ${COMPOSE_PROJECT_NAME} ps -q app)
 
                         # Test sonuçlarını host'a kopyala
                         echo "Test sonuçları kopyalanıyor..."
                         docker cp "$APP_CONTAINER:/app/target/surefire-reports" ./surefire-reports || echo "⚠️ Surefire reports bulunamadı"
                         docker cp "$APP_CONTAINER:/app/target/failsafe-reports" ./failsafe-reports || echo "⚠️ Failsafe reports bulunamadı"
-
-                        # Screenshots varsa kopyala
                         docker cp "$APP_CONTAINER:/app/screenshots" ./screenshots || echo "⚠️ Screenshots bulunamadı"
 
                         echo "✅ Test sonuçları kopyalandı"
 
-                        # Kopyalanan dosyaları listele
-                        echo "📂 Kopyalanan dosyalar:"
-                        ls -la surefire-reports/ || echo "Surefire reports yok"
-                        ls -la failsafe-reports/ || echo "Failsafe reports yok"
-                        ls -la screenshots/ || echo "Screenshots yok"
+                        # Sonuçları listele
+                        echo "📂 Test sonuç dosyaları:"
+                        [ -d "surefire-reports" ] && ls -la surefire-reports/ || echo "Surefire reports yok"
+                        [ -d "failsafe-reports" ] && ls -la failsafe-reports/ || echo "Failsafe reports yok"
+                        [ -d "screenshots" ] && ls -la screenshots/ || echo "Screenshots yok"
                     '''
                 }
             }
@@ -363,80 +213,51 @@ pipeline {
     post {
         always {
             script {
-                echo "🧹 Temizlik işlemleri..."
+                echo "🧹 Temizlik işlemleri başlatılıyor..."
 
                 // Test sonuçlarını publish et
-                if (fileExists('surefire-reports')) {
-                    publishTestResults testResultsPattern: 'surefire-reports/*.xml'
-                }
-                if (fileExists('failsafe-reports')) {
-                    publishTestResults testResultsPattern: 'failsafe-reports/*.xml'
+                try {
+                    if (fileExists('surefire-reports')) {
+                        publishTestResults testResultsPattern: 'surefire-reports/*.xml'
+                        echo "📊 Unit test sonuçları Jenkins'e yüklendi"
+                    }
+                    if (fileExists('failsafe-reports')) {
+                        publishTestResults testResultsPattern: 'failsafe-reports/*.xml'
+                        echo "📊 Integration test sonuçları Jenkins'e yüklendi"
+                    }
+                } catch (Exception e) {
+                    echo "⚠️ Test sonuçları publish hatası: ${e.getMessage()}"
                 }
 
                 // Screenshots'ları arşivle
-                if (fileExists('screenshots')) {
-                    archiveArtifacts artifacts: 'screenshots/**/*', allowEmptyArchive: true
+                try {
+                    if (fileExists('screenshots')) {
+                        archiveArtifacts artifacts: 'screenshots/**/*', allowEmptyArchive: true
+                        echo "📷 Screenshot'lar arşivlendi"
+                    }
+                } catch (Exception e) {
+                    echo "⚠️ Screenshot arşivleme hatası: ${e.getMessage()}"
                 }
 
-                // Docker container'ları temizle
+                // Docker temizliği
                 sh '''
-                    echo "Container'ları durduruyor ve temizliyorum..."
+                    echo "🐳 Docker container'ları temizleniyor..."
+                    docker-compose -p ${COMPOSE_PROJECT_NAME} down --volumes --remove-orphans || true
 
-                    # Docker Compose varsa kullan
-                    if command -v docker-compose &> /dev/null; then
-                        docker-compose -p ${COMPOSE_PROJECT_NAME} logs app || true
-                        docker-compose -p ${COMPOSE_PROJECT_NAME} down --volumes --remove-orphans || true
-                    elif docker compose version &> /dev/null; then
-                        docker compose -p ${COMPOSE_PROJECT_NAME} logs app || true
-                        docker compose -p ${COMPOSE_PROJECT_NAME} down --volumes --remove-orphans || true
-                    else
-                        # Manuel temizlik
-                        echo "Manuel Docker temizliği yapılıyor..."
+                    # Sadece bu build'e ait volume'ları temizle
+                    docker volume ls -q | grep "${COMPOSE_PROJECT_NAME}" | xargs -r docker volume rm || true
 
-                        # Container loglarını göster
-                        docker logs ${COMPOSE_PROJECT_NAME}-app-1 || true
-
-                        # Container'ları durdur ve sil
-                        docker stop ${COMPOSE_PROJECT_NAME}-app-1 || true
-                        docker stop ${COMPOSE_PROJECT_NAME}-frontend-1 || true
-                        docker stop ${COMPOSE_PROJECT_NAME}-selenium-chrome || true
-                        docker stop ${COMPOSE_PROJECT_NAME}-selenium-hub || true
-                        docker stop ${COMPOSE_PROJECT_NAME}-db-1 || true
-
-                        docker rm ${COMPOSE_PROJECT_NAME}-app-1 || true
-                        docker rm ${COMPOSE_PROJECT_NAME}-frontend-1 || true
-                        docker rm ${COMPOSE_PROJECT_NAME}-selenium-chrome || true
-                        docker rm ${COMPOSE_PROJECT_NAME}-selenium-hub || true
-                        docker rm ${COMPOSE_PROJECT_NAME}-db-1 || true
-
-                        # Network'ü sil
-                        docker network rm ${COMPOSE_PROJECT_NAME}_app-network || true
-
-                        # Build edilen imajları temizle
-                        docker rmi ${COMPOSE_PROJECT_NAME}-app || true
-                        docker rmi ${COMPOSE_PROJECT_NAME}-frontend || true
-                    fi
-
-                    # Kullanılmayan imajları temizle
-                    docker image prune -f || true
+                    echo "✅ Docker temizliği tamamlandı"
                 '''
-
-                echo "✅ Temizlik tamamlandı"
             }
         }
+
         success {
-            echo "🎉 Pipeline başarıyla tamamlandı!"
+            echo "🎉 Pipeline BAŞARILI! Tüm testler geçti."
         }
+
         failure {
-            echo "❌ Pipeline başarısız oldu!"
-            // Container loglarını göster
-            sh '''
-                echo "Hata durumunda container logları:"
-                docker logs ${COMPOSE_PROJECT_NAME}-app-1 || echo "App container log alınamadı"
-                docker logs ${COMPOSE_PROJECT_NAME}-db-1 || echo "DB container log alınamadı"
-                docker logs ${COMPOSE_PROJECT_NAME}-selenium-hub || echo "Selenium Hub log alınamadı"
-                docker ps --filter "name=${COMPOSE_PROJECT_NAME}" || true
-            '''
+            echo "❌ Pipeline BAŞARISIZ! Hatalar var, lütfen kontrol edin."
         }
     }
 }
