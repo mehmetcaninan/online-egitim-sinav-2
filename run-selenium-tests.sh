@@ -16,17 +16,23 @@ if [ "$JENKINS_URL" ] || [ "$CI" = "true" ]; then
     echo -e "${YELLOW}🏗️  CI/Jenkins ortamı tespit edildi - Headless mode aktif${NC}"
 fi
 
-# Chrome konfigürasyonunu oku
-SKIP_SELENIUM=false
+# Driver konfigürasyonunu oku
+USE_CHROME=false
+USE_HTMLUNIT=false
 CHROME_BINARY_PATH=""
 
 if [ -f "/tmp/chrome-config" ]; then
     source /tmp/chrome-config
-    if [ "$SKIP_SELENIUM" = "true" ]; then
-        echo -e "${YELLOW}⚠️  Chrome kurulumu başarısız - Selenium testleri atlanacak${NC}"
-        exit 0
+    if [ "$USE_HTMLUNIT" = "true" ]; then
+        echo -e "${GREEN}✅ HTMLUnit driver kullanılacak - Chrome'a bağımlılık yok${NC}"
+    elif [ "$USE_CHROME" = "true" ]; then
+        echo -e "${GREEN}✅ Chrome driver kullanılacak: $CHROME_BINARY_PATH${NC}"
+        USE_CHROME=true
     fi
-    echo -e "${GREEN}✅ Chrome binary path bulundu: $CHROME_BINARY_PATH${NC}"
+else
+    # Fallback: HTMLUnit'i varsayılan yap
+    USE_HTMLUNIT=true
+    echo -e "${YELLOW}⚠️ Driver config bulunamadı - HTMLUnit varsayılan olarak kullanılacak${NC}"
 fi
 
 # Gerekli komutları kontrol et
@@ -140,33 +146,34 @@ else
     echo -e "${YELLOW}Frontend klasörü bulunamadı${NC}"
 fi
 
-echo -e "${YELLOW}3. Chrome/WebDriver kontrol ediliyor...${NC}"
-CHROME_AVAILABLE=false
+echo -e "${YELLOW}3. Selenium Driver kontrol ediliyor...${NC}"
 
-# Chrome binary'yi bul - daha kapsamlı arama
-CHROME_BINARY=""
-POSSIBLE_CHROME_PATHS=("/usr/bin/google-chrome" "/usr/bin/google-chrome-stable" "/usr/bin/chromium-browser" "/usr/bin/chromium" "/opt/google/chrome/chrome" "$CHROME_BINARY_PATH")
+# Driver seçimi ve konfigürasyonu
+if [ "$USE_HTMLUNIT" = "true" ]; then
+    echo -e "${GREEN}✅ HTMLUnit Driver seçildi${NC}"
+    echo -e "${GREEN}  • Chrome/Chromium'a bağımlılık yok${NC}"
+    echo -e "${GREEN}  • Virtual display gerekmiyor${NC}"
+    echo -e "${GREEN}  • JavaScript desteği var${NC}"
 
-for path in "${POSSIBLE_CHROME_PATHS[@]}"; do
-    if [ ! -z "$path" ] && [ -f "$path" ] && [ -x "$path" ]; then
-        CHROME_BINARY="$path"
-        echo -e "${GREEN}✅ Chrome binary bulundu: $path${NC}"
+    export SELENIUM_DRIVER=htmlunit
+    export SELENIUM_HEADLESS=true
 
-        # Chrome versiyonunu kontrol et
-        CHROME_VERSION=$($CHROME_BINARY --version 2>/dev/null || echo "Versiyon alınamadı")
-        echo -e "${GREEN}Chrome versiyonu: $CHROME_VERSION${NC}"
-        CHROME_AVAILABLE=true
-        break
-    fi
-done
+elif [ "$USE_CHROME" = "true" ] && [ ! -z "$CHROME_BINARY_PATH" ]; then
+    echo -e "${GREEN}✅ Chrome Driver seçildi: $CHROME_BINARY_PATH${NC}"
 
-if [ "$CHROME_AVAILABLE" = false ]; then
-    echo -e "${RED}❌ Chrome binary bulunamadı${NC}"
-    echo -e "${YELLOW}⚠️  Selenium testleri atlanacak${NC}"
-    export SKIP_SELENIUM=true
+    # Chrome versiyonunu kontrol et
+    CHROME_VERSION=$($CHROME_BINARY_PATH --version 2>/dev/null || echo "Versiyon alınamadı")
+    echo -e "${GREEN}Chrome versiyonu: $CHROME_VERSION${NC}"
+
+    export SELENIUM_DRIVER=chrome
+    export CHROME_BINARY_PATH="$CHROME_BINARY_PATH"
+    export SELENIUM_HEADLESS=true
+
 else
-    export CHROME_BINARY_PATH="$CHROME_BINARY"
-    export CHROME_AVAILABLE=true
+    # Fallback to HTMLUnit
+    echo -e "${YELLOW}⚠️  Chrome mevcut değil - HTMLUnit'e fallback${NC}"
+    export SELENIUM_DRIVER=htmlunit
+    export SELENIUM_HEADLESS=true
 fi
 
 echo -e "${YELLOW}4. Maven bağımlılıkları ve test derleme...${NC}"
@@ -178,11 +185,11 @@ echo "  • UserLogin testleri (Temel giriş)"
 echo "  • AdminPanel testleri (Yönetici paneli)"
 echo "  • ExamCreation testleri (Sınav oluşturma)"
 echo "  • ExamTaking testleri (Sınav alma)"
+echo "🔧 Driver: $SELENIUM_DRIVER"
 
 if [ "$CI_ENVIRONMENT" = true ]; then
     echo -e "${YELLOW}🔧 CI ortamı için Selenium konfigürasyonu ayarlanıyor...${NC}"
     export CI=true
-    export SELENIUM_HEADLESS=true
 fi
 
 # Selenium testlerini çalıştır
@@ -192,13 +199,23 @@ echo "==============================================="
 
 SELENIUM_EXIT_CODE=0
 
-if [ "$SKIP_SELENIUM" = "true" ] || [ "$CHROME_AVAILABLE" = false ]; then
-    echo -e "${YELLOW}⚠️ Selenium testleri atlandı (Chrome/Chromium bulunamadı)${NC}"
-else
-    # Selenium testlerini Maven ile çalıştır
+# Maven ile Selenium testlerini çalıştır - driver tipine göre parametreler
+if [ "$SELENIUM_DRIVER" = "htmlunit" ]; then
     ./mvnw failsafe:integration-test failsafe:verify \
         -Pselenium-tests \
         -Dci=true \
+        -Dselenium.driver=htmlunit \
+        -Dselenium.headless=true \
+        -Dapp.baseUrl=http://localhost:8081 \
+        -DfailIfNoTests=false \
+        -Dmaven.test.failure.ignore=false \
+        -q
+
+elif [ "$SELENIUM_DRIVER" = "chrome" ]; then
+    ./mvnw failsafe:integration-test failsafe:verify \
+        -Pselenium-tests \
+        -Dci=true \
+        -Dselenium.driver=chrome \
         -Dselenium.headless=${SELENIUM_HEADLESS:-true} \
         -Dchrome.binary.path="$CHROME_BINARY_PATH" \
         -Dapp.baseUrl=http://localhost:8081 \
@@ -207,31 +224,31 @@ else
         -Dwebdriver.chrome.driver="" \
         -Dwebdriver.chrome.args="--no-sandbox,--disable-dev-shm-usage,--disable-gpu,--headless" \
         -q
+fi
 
-    SELENIUM_EXIT_CODE=$?
+SELENIUM_EXIT_CODE=$?
 
-    echo "==============================================="
-    if [ $SELENIUM_EXIT_CODE -eq 0 ]; then
-        echo -e "${GREEN}✅ SELENIUM TESTLERİ BAŞARILI${NC}"
-    else
-        echo -e "${RED}❌ SELENIUM TESTLERİ BAŞARISIZ (Exit Code: $SELENIUM_EXIT_CODE)${NC}"
-    fi
-    echo "==============================================="
+echo "==============================================="
+if [ $SELENIUM_EXIT_CODE -eq 0 ]; then
+    echo -e "${GREEN}✅ SELENIUM TESTLERİ BAŞARILI${NC}"
+else
+    echo -e "${RED}❌ SELENIUM TESTLERİ BAŞARISIZ (Exit Code: $SELENIUM_EXIT_CODE)${NC}"
+fi
+echo "==============================================="
 
-    # Test sonuçlarını göster
-    if [ -d "target/selenium-reports" ]; then
-        echo -e "${YELLOW}📊 Selenium Test Sonuçları:${NC}"
-        find target/selenium-reports -name "*.xml" 2>/dev/null | head -5 | while read file; do
-            echo "  📄 $file"
-        done
-    fi
+# Test sonuçlarını göster
+if [ -d "target/selenium-reports" ]; then
+    echo -e "${YELLOW}📊 Selenium Test Sonuçları:${NC}"
+    find target/selenium-reports -name "*.xml" 2>/dev/null | head -5 | while read file; do
+        echo "  📄 $file"
+    done
+fi
 
-    if [ -d "target/failsafe-reports" ]; then
-        echo -e "${YELLOW}📊 Failsafe Test Sonuçları:${NC}"
-        find target/failsafe-reports -name "*.xml" 2>/dev/null | head -5 | while read file; do
-            echo "  📄 $file"
-        done
-    fi
+if [ -d "target/failsafe-reports" ]; then
+    echo -e "${YELLOW}📊 Failsafe Test Sonuçları:${NC}"
+    find target/failsafe-reports -name "*.xml" 2>/dev/null | head -5 | while read file; do
+        echo "  📄 $file"
+    done
 fi
 
 echo -e "${YELLOW}6. Test tamamlandı${NC}"
@@ -255,8 +272,10 @@ cleanup() {
     # Port'u kullanan process'leri temizle
     lsof -ti:8081 | xargs kill -9 2>/dev/null || true
 
-    # Virtual display'i durdur
-    pkill -f "Xvfb.*:99" 2>/dev/null || true
+    # Virtual display'i durdur (sadece Chrome kullanıldıysa)
+    if [ "$USE_CHROME" = "true" ]; then
+        pkill -f "Xvfb.*:99" 2>/dev/null || true
+    fi
 
     echo "Temizlik tamamlandı"
 }
