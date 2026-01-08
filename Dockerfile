@@ -40,17 +40,24 @@ RUN ./mvnw dependency:go-offline -B
 # Kaynak kodları kopyala
 COPY src src
 
-# Spring Boot executable JAR oluştur (tam Maven lifecycle)
-RUN ./mvnw clean package -DskipTests
+# Frontend build et (eğer varsa)
+COPY frontend frontend
+RUN if [ -d "frontend" ]; then \
+    cd frontend && \
+    npm ci && \
+    npm run build && \
+    mkdir -p ../src/main/resources/static && \
+    cp -r dist/* ../src/main/resources/static/; \
+    fi || echo "Frontend klasörü bulunamadı, atlanıyor..."
 
-# Target klasörünün içeriğini kontrol et ve JAR dosyalarını listele
-RUN ls -la target/ && echo "=== JAR Dosyaları ===" && find target -name "*.jar" -ls
+# Spring Boot executable JAR oluştur - düzeltilmiş build süreci
+RUN ./mvnw clean package -DskipTests -Dspring-boot.repackage.skip=false
 
-# Spring Boot executable JAR'ı kopyala (fat JAR)
-RUN cp target/online_egitim_sinav_kod-0.0.1-SNAPSHOT.jar app.jar
+# JAR dosyasını gerçek adıyla kopyala
+RUN cp target/online_egitim_sinav_kod-0.0.1-SNAPSHOT.jar online_egitim_sinav_kod-0.0.1-SNAPSHOT.jar
 
 # Port'u aç (test ortamı için 8081)
 EXPOSE 8081
 
-# Uygulamayı başlat
-ENTRYPOINT ["java", "-jar", "/app/app.jar", "--server.port=8081"]
+# Uygulamayı başlat - Docker profili ile
+ENTRYPOINT ["java", "-jar", "/app/online_egitim_sinav_kod-0.0.1-SNAPSHOT.jar", "--spring.profiles.active=docker", "--server.port=8081"]

@@ -1,0 +1,84 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://db:5432/online_egitim_db
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+  # Jackson JSON configuration
+  jackson:
+    serialization:
+      fail-on-empty-beans: false
+    default-property-inclusion: NON_NULL
+
+  # Security configuration
+  security:
+    user:
+      name: admin
+      password: admin123
+      roles: ADMIN
+
+server:
+  port: 8081
+  servlet:
+    context-path: /
+  compression:
+    enabled: true
+  error:
+    include-message: always
+    include-binding-errors: always
+
+# Management endpoints (Actuator)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+# Logging configuration for Docker
+logging:
+  level:
+    root: INFO
+    com.example.online_egitim_sinav_kod: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Test configuration
+app:
+  baseUrl: http://localhost:8081
+  frontend:
+    url: http://localhost:8081
+
+# Selenium configuration for Docker
+webdriver:
+  chrome:
+    driver: ""
+  remote:
+    url: http://selenium-hub:4444/wd/hub
+
+selenium:
+  headless: true
+  grid:
+    enabled: true
+    hub-url: http://selenium-hub:4444/wd/hub

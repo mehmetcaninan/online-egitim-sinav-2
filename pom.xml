@@ -236,6 +236,23 @@
                 </configuration>
             </plugin>
 
+            <!-- Spring Boot Maven Plugin - EKSIK OLAN PLUGIN -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <executable>true</executable>
+                    <mainClass>com.example.online_egitim_sinav_kod.OnlineEgitimSinavKodApplication</mainClass>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
         </plugins>
     </build>
 
