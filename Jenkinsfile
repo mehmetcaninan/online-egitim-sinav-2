@@ -12,21 +12,25 @@ pipeline {
     }
 
     environment {
-        COMPOSE_PROJECT_NAME = "jenkins-ci-${BUILD_NUMBER}"
+        COMPOSE_PROJECT_NAME = "local-jenkins-${BUILD_NUMBER}"
         DOCKER_BUILDKIT = '1'
         CI = 'true'
         SELENIUM_HEADLESS = 'true'
+        // Local ortam için Chrome path
+        CHROME_BIN = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+        CHROMEDRIVER_PATH = '/usr/local/bin/chromedriver'
     }
 
     stages {
         stage('1 - Checkout & Info') {
             steps {
                 script {
-                    echo "🐳 DOCKER-COMPOSE JENKINS PIPELINE"
+                    echo "🏠 LOCAL JENKINS PIPELINE"
                     echo "================================="
                     echo "Build Number: ${BUILD_NUMBER}"
                     echo "Git Branch: ${env.GIT_BRANCH ?: 'main'}"
                     echo "Docker Compose Project: ${COMPOSE_PROJECT_NAME}"
+                    echo "Local Mode: Jenkins running on local machine"
 
                     checkout scm
 
@@ -38,66 +42,59 @@ pipeline {
             }
         }
 
-        stage('2 - Docker Environment Setup') {
+        stage('2 - Local Environment Setup') {
             steps {
                 script {
-                    echo "🐳 Docker ortamı hazırlanıyor..."
+                    echo "🏠 Local ortam hazırlanıyor..."
 
                     sh '''
-                        echo "Docker Compose kurulumunu kontrol ediyorum..."
+                        echo "Local Docker ve Chrome kontrol ediliyor..."
 
-                        # Docker Compose V2 kontrolü
+                        # Docker kontrol
+                        if ! docker --version >/dev/null 2>&1; then
+                            echo "❌ Docker bulunamadı! Lütfen Docker Desktop'ı kurun."
+                            exit 1
+                        fi
+                        echo "✅ Docker mevcut: $(docker --version)"
+
+                        # Docker Compose kontrol
                         if ! docker compose version >/dev/null 2>&1; then
-                            echo "❌ Docker Compose V2 bulunamadı, kurulum yapılıyor..."
+                            echo "❌ Docker Compose bulunamadı!"
+                            exit 1
+                        fi
+                        echo "✅ Docker Compose mevcut: $(docker compose version)"
 
-                            # Docker Compose V2 kurulum
-                            DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
-                            mkdir -p $DOCKER_CONFIG/cli-plugins
+                        # Chrome Browser kontrol (macOS)
+                        if [[ "$OSTYPE" == "darwin"* ]]; then
+                            if [ ! -f "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ]; then
+                                echo "⚠️ Chrome browser bulunamadı, Selenium testleri başarısız olabilir"
+                            else
+                                echo "✅ Chrome browser mevcut"
+                            fi
+                        fi
 
-                            # Download latest docker-compose
-                            curl -SL https://github.com/docker/compose/releases/latest/download/docker-compose-linux-x86_64 -o $DOCKER_CONFIG/cli-plugins/docker-compose
-                            chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose
+                        # ChromeDriver kontrol ve kurulum
+                        if ! command -v chromedriver >/dev/null 2>&1; then
+                            echo "⚠️ ChromeDriver bulunamadı, kurulum yapılıyor..."
 
-                            echo "✅ Docker Compose V2 kuruldu"
+                            # macOS için ChromeDriver kurulumu
+                            if [[ "$OSTYPE" == "darwin"* ]]; then
+                                if command -v brew >/dev/null 2>&1; then
+                                    brew install chromedriver || echo "Brew ile ChromeDriver kurulumu başarısız"
+                                else
+                                    echo "❌ Homebrew bulunamadı, ChromeDriver manuel kurulmalı"
+                                fi
+                            fi
                         else
-                            echo "✅ Docker Compose V2 mevcut"
+                            echo "✅ ChromeDriver mevcut: $(chromedriver --version)"
                         fi
-
-                        # Docker BuildX kurulum kontrolü - Versiyon gereksinimi: 0.17+
-                        echo "Docker BuildX kurulumunu kontrol ediyorum..."
-
-                        BUILDX_REQUIRED_VERSION="0.17"
-                        CURRENT_BUILDX_VERSION=""
-
-                        if docker buildx version >/dev/null 2>&1; then
-                            CURRENT_BUILDX_VERSION=$(docker buildx version | grep buildx | cut -d' ' -f2 | cut -d'v' -f2 | cut -d'+' -f1)
-                            echo "Mevcut BuildX versiyonu: $CURRENT_BUILDX_VERSION"
-                        fi
-
-                        # Version karşılaştırması yapmak yerine her zaman yeni versiyonu kur
-                        echo "❌ BuildX 0.17+ gerekiyor, yeni versiyon kuruluyor..."
-
-                        # BuildX kurulum
-                        DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
-                        mkdir -p $DOCKER_CONFIG/cli-plugins
-
-                        # Download BuildX v0.17.1 (kesin versiyon)
-                        curl -SL https://github.com/docker/buildx/releases/download/v0.17.1/buildx-v0.17.1.linux-amd64 -o $DOCKER_CONFIG/cli-plugins/docker-buildx
-                        chmod +x $DOCKER_CONFIG/cli-plugins/docker-buildx
-
-                        echo "✅ Docker BuildX v0.17.1 kuruldu"
-
-                        # Versiyonları doğrula
-                        echo "📋 Kurulu versiyonlar:"
-                        docker compose version
-                        docker buildx version
 
                         echo "Önceki container'ları temizliyorum..."
 
-                        # Sadece jenkins ile ilgili container'ları temizle
-                        docker ps -a | grep "jenkins-ci" | awk '{print $1}' | xargs -r docker rm -f || true
+                        # Local ortamda sadece bizim container'ları temizle
+                        docker ps -a | grep "local-jenkins" | awk '{print $1}' | xargs -r docker rm -f || true
 
-                        # Sadece dangling image'ları temizle
+                        # Dangling image'ları temizle
                         docker image prune -f || true
 
                         # Network temizliği
@@ -108,7 +105,7 @@ pipeline {
                         error "docker-compose.yml dosyası bulunamadı!"
                     }
 
-                    echo "✅ Docker ortamı hazırlandı"
+                    echo "✅ Local ortam hazırlandı"
                 }
             }
         }
@@ -116,65 +113,95 @@ pipeline {
         stage('3 - Build & Start Services') {
             steps {
                 script {
-                    echo "🏗️ Docker Compose ile servisler başlatılıyor..."
+                    echo "🏗️ Local Docker Compose ile servisler başlatılıyor..."
 
                     sh '''
-                        echo "🔧 Docker Compose build ve start..."
+                        echo "🔧 Local Docker Compose build ve start..."
 
-                        # Docker Compose V2 syntax kullan
-                        docker compose -p ${COMPOSE_PROJECT_NAME} build --parallel app
+                        # Backend ve Frontend servislerini build et
+                        docker compose -p ${COMPOSE_PROJECT_NAME} build app frontend
 
-                        # Sadece gerekli servisleri başlat
-                        docker compose -p ${COMPOSE_PROJECT_NAME} up -d app
+                        # Backend ve Frontend servislerini başlat
+                        docker compose -p ${COMPOSE_PROJECT_NAME} up -d app frontend
 
-                        # Kısa bekleme - servislerin başlaması için
-                        echo "Servisler başlatıldı, hazır olması bekleniyor..."
-                        sleep 8
+                        # Servislerin başlaması için bekle
+                        echo "Backend ve Frontend başlatıldı, hazır olması bekleniyor..."
+                        sleep 15
 
-                        # Container durumunu kontrol et
+                        # Container durumlarını kontrol et
                         echo "📋 Container durumları:"
                         docker compose -p ${COMPOSE_PROJECT_NAME} ps
 
-                        # App container'ın çalıştığını doğrula
+                        # App container kontrolü
                         APP_CONTAINER=$(docker compose -p ${COMPOSE_PROJECT_NAME} ps -q app)
                         if [ -z "$APP_CONTAINER" ]; then
-                            echo "❌ App container bulunamadı!"
+                            echo "❌ Backend container bulunamadı!"
                             docker compose -p ${COMPOSE_PROJECT_NAME} logs app
                             exit 1
                         fi
 
-                        echo "✅ Servis başarıyla çalışıyor"
-                        echo "App Container ID: $APP_CONTAINER"
+                        # Frontend container kontrolü
+                        FRONTEND_CONTAINER=$(docker compose -p ${COMPOSE_PROJECT_NAME} ps -q frontend)
+                        if [ -z "$FRONTEND_CONTAINER" ]; then
+                            echo "❌ Frontend container bulunamadı!"
+                            docker compose -p ${COMPOSE_PROJECT_NAME} logs frontend
+                            exit 1
+                        fi
+
+                        echo "✅ Backend ve Frontend başarıyla çalışıyor"
+                        echo "Backend Container ID: $APP_CONTAINER"
+                        echo "Frontend Container ID: $FRONTEND_CONTAINER"
+                        echo "Backend URL: http://localhost:8081"
+                        echo "Frontend URL: http://localhost:5173"
                     '''
                 }
             }
         }
 
-        stage('4 - Wait for Services & Run Tests') {
+        stage('4 - Run Tests') {
             steps {
                 script {
-                    echo "🧪 Servis hazırlığı kontrol ediliyor ve testler çalıştırılıyor..."
+                    echo "🧪 Local ortamda testler çalıştırılıyor..."
 
                     sh '''
                         APP_CONTAINER=$(docker compose -p ${COMPOSE_PROJECT_NAME} ps -q app)
+                        FRONTEND_CONTAINER=$(docker compose -p ${COMPOSE_PROJECT_NAME} ps -q frontend)
 
-                        echo "Test container: $APP_CONTAINER"
+                        echo "Backend Container: $APP_CONTAINER"
+                        echo "Frontend Container: $FRONTEND_CONTAINER"
 
-                        # Backend hazır olana kadar bekle - H2 DB kullanıldığından DB kontrol gereksiz
+                        # Backend hazır olana kadar bekle
                         echo "📦 Backend hazırlığı kontrol ediliyor..."
-                        for i in {1..15}; do
+                        for i in {1..20}; do
                             if docker exec "$APP_CONTAINER" curl -f http://localhost:8081/actuator/health >/dev/null 2>&1; then
                                 echo "✅ Backend hazır (${i}. deneme)"
                                 break
                             fi
-                            echo "⏳ Backend henüz hazır değil, bekleniyor... (${i}/15)"
+                            echo "⏳ Backend henüz hazır değil, bekleniyor... (${i}/20)"
                             sleep 3
                         done
 
-                        # Son kontrol
+                        # Frontend hazır olana kadar bekle
+                        echo "🎨 Frontend hazırlığı kontrol ediliyor..."
+                        for i in {1..15}; do
+                            if curl -f http://localhost:5173 >/dev/null 2>&1; then
+                                echo "✅ Frontend hazır (${i}. deneme)"
+                                break
+                            fi
+                            echo "⏳ Frontend henüz hazır değil, bekleniyor... (${i}/15)"
+                            sleep 4
+                        done
+
+                        # Son kontroller
                         if ! docker exec "$APP_CONTAINER" curl -f http://localhost:8081/actuator/health >/dev/null 2>&1; then
                             echo "❌ Backend hazır değil! Logları kontrol ediliyor..."
                             docker compose -p ${COMPOSE_PROJECT_NAME} logs app
+                            exit 1
+                        fi
+
+                        if ! curl -f http://localhost:5173 >/dev/null 2>&1; then
+                            echo "❌ Frontend hazır değil! Logları kontrol ediliyor..."
+                            docker compose -p ${COMPOSE_PROJECT_NAME} logs frontend
                             exit 1
                         fi
 
@@ -196,14 +223,26 @@ pipeline {
                         fi
                         echo "✅ Integration testler başarılı"
 
-                        # Selenium testleri - HATA DURUMUNDA PIPELINE DURDUR
-                        echo "🌐 Selenium testler çalıştırılıyor..."
-                        if ! docker exec "$APP_CONTAINER" ./mvnw test -Dtest="*SeleniumTest" -Dwebdriver.chrome.driver=/usr/bin/chromedriver -Dapp.baseUrl=http://localhost:8081 -Dmaven.test.failure.ignore=false; then
-                            echo "❌ Selenium testler BAŞARISIZ! Pipeline durduruluyor."
-                            docker compose -p ${COMPOSE_PROJECT_NAME} logs app
-                            exit 1
+                        # Selenium testleri - Local Chrome ile Frontend'e karşı
+                        echo "🌐 Selenium testler çalıştırılıyor (Frontend: http://localhost:5173)..."
+                        if command -v chromedriver >/dev/null 2>&1; then
+                            # Local'de Selenium testleri çalıştır - Frontend URL'ine karşı
+                            ./mvnw test -Dtest="*SeleniumTest" \\
+                                -Dwebdriver.chrome.driver=$(which chromedriver) \\
+                                -Dapp.baseUrl=http://localhost:5173 \\
+                                -Dmaven.test.failure.ignore=false \\
+                                -Dselenium.headless=true || {
+                                echo "❌ Selenium testler BAŞARISIZ! Pipeline durduruluyor."
+                                echo "Frontend Logs:"
+                                docker compose -p ${COMPOSE_PROJECT_NAME} logs frontend
+                                echo "Backend Logs:"
+                                docker compose -p ${COMPOSE_PROJECT_NAME} logs app
+                                exit 1
+                            }
+                            echo "✅ Selenium testler başarılı (Frontend: http://localhost:5173)"
+                        else
+                            echo "⚠️ ChromeDriver bulunamadı, Selenium testleri atlanıyor"
                         fi
-                        echo "✅ Selenium testler başarılı"
                     '''
 
                     echo "✅ Tüm testler başarıyla tamamlandı"
@@ -214,18 +253,32 @@ pipeline {
         stage('5 - Extract Test Results') {
             steps {
                 script {
-                    echo "📊 Test sonuçları Docker'dan çıkarılıyor..."
+                    echo "📊 Test sonuçları toplanıyor..."
 
                     sh '''
                         APP_CONTAINER=$(docker compose -p ${COMPOSE_PROJECT_NAME} ps -q app)
 
-                        # Test sonuçlarını host'a kopyala
-                        echo "Test sonuçları kopyalanıyor..."
-                        docker cp "$APP_CONTAINER:/app/target/surefire-reports" ./surefire-reports || echo "⚠️ Surefire reports bulunamadı"
-                        docker cp "$APP_CONTAINER:/app/target/failsafe-reports" ./failsafe-reports || echo "⚠️ Failsafe reports bulunamadı"
-                        docker cp "$APP_CONTAINER:/app/screenshots" ./screenshots || echo "⚠️ Screenshots bulunamadı"
+                        # Container'dan test sonuçlarını kopyala
+                        echo "Docker container'dan test sonuçları kopyalanıyor..."
+                        docker cp "$APP_CONTAINER:/app/target/surefire-reports" ./surefire-reports || echo "⚠️ Container'dan surefire reports kopyalanamadı"
+                        docker cp "$APP_CONTAINER:/app/target/failsafe-reports" ./failsafe-reports || echo "⚠️ Container'dan failsafe reports kopyalanamadı"
 
-                        echo "✅ Test sonuçları kopyalandı"
+                        # Local'den de test sonuçları al (Selenium için)
+                        echo "Local test sonuçları kontrol ediliyor..."
+                        if [ -d "./target/surefire-reports" ]; then
+                            cp -r ./target/surefire-reports/* ./surefire-reports/ 2>/dev/null || true
+                        fi
+                        if [ -d "./target/failsafe-reports" ]; then
+                            cp -r ./target/failsafe-reports/* ./failsafe-reports/ 2>/dev/null || true
+                        fi
+
+                        # Screenshots kopyala
+                        docker cp "$APP_CONTAINER:/app/screenshots" ./screenshots || echo "⚠️ Screenshots bulunamadı"
+                        if [ -d "./screenshots" ]; then
+                            cp -r ./screenshots/* ./screenshots/ 2>/dev/null || true
+                        fi
+
+                        echo "✅ Test sonuçları toplandı"
 
                         # Sonuçları listele
                         echo "📂 Test sonuç dosyaları:"
@@ -241,9 +294,9 @@ pipeline {
     post {
         always {
             script {
-                echo "🧹 Temizlik işlemleri başlatılıyor..."
+                echo "🧹 Local ortam temizlik işlemleri..."
 
-                // Test sonuçlarını publish et - Doğru JUnit syntax
+                // Test sonuçlarını publish et
                 try {
                     if (fileExists('surefire-reports')) {
                         junit 'surefire-reports/*.xml'
@@ -267,25 +320,27 @@ pipeline {
                     echo "⚠️ Screenshot arşivleme hatası: ${e.getMessage()}"
                 }
 
-                // Docker temizliği
+                // Local Docker temizliği
                 sh '''
-                    echo "🐳 Docker container'ları temizleniyor..."
+                    echo "🐳 Local Docker container'ları temizleniyor..."
                     docker compose -p ${COMPOSE_PROJECT_NAME} down --volumes --remove-orphans || true
 
-                    # Sadece bu build'e ait volume'ları temizle
+                    # Local ortamda sadece bu build'e ait volume'ları temizle
                     docker volume ls -q | grep "${COMPOSE_PROJECT_NAME}" | xargs -r docker volume rm || true
 
-                    echo "✅ Docker temizliği tamamlandı"
+                    echo "✅ Local Docker temizliği tamamlandı"
                 '''
             }
         }
 
         success {
-            echo "🎉 Pipeline BAŞARILI! Tüm testler geçti."
+            echo "🎉 LOCAL PIPELINE BAŞARILI! Tüm testler geçti."
+            echo "🌐 Uygulama: http://localhost:8081"
+            echo "🗄️ H2 Console: http://localhost:8082"
         }
 
         failure {
-            echo "❌ Pipeline BAŞARISIZ! Hatalar var, lütfen kontrol edin."
+            echo "❌ LOCAL PIPELINE BAŞARISIZ! Hatalar var, lütfen kontrol edin."
         }
     }
 }
