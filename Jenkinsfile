@@ -109,8 +109,9 @@ pipeline {
                         DB_PORT=5433
                         SELENIUM_PORT=4445
                         APP_PORT=8083
+                        FRONTEND_PORT=3001
 
-                        echo "📦 Portlar: DB=$DB_PORT, Selenium=$SELENIUM_PORT, App=$APP_PORT"
+                        echo "📦 Portlar: DB=$DB_PORT, Selenium=$SELENIUM_PORT, App=$APP_PORT, Frontend=$FRONTEND_PORT"
 
                         # Network oluştur
                         docker network create ${COMPOSE_PROJECT_NAME}_app-network || true
@@ -162,12 +163,12 @@ pipeline {
                         echo "Selenium servisleri başlatıldı"
                         sleep 10
 
-                        # App build et
-                        echo "🏗️ Uygulama build ediliyor..."
+                        # Backend App build et
+                        echo "🏗️ Backend uygulaması build ediliyor..."
                         docker build --platform linux/arm64 -t ${COMPOSE_PROJECT_NAME}-app .
 
-                        # App başlat - farklı port
-                        echo "🚀 Uygulama başlatılıyor (Port: $APP_PORT)..."
+                        # Backend App başlat - farklı port
+                        echo "🚀 Backend uygulaması başlatılıyor (Port: $APP_PORT)..."
                         docker run -d \\
                             --name ${COMPOSE_PROJECT_NAME}-app-1 \\
                             --network ${COMPOSE_PROJECT_NAME}_app-network \\
@@ -179,8 +180,26 @@ pipeline {
                             --platform linux/arm64 \\
                             ${COMPOSE_PROJECT_NAME}-app
 
-                        echo "Uygulama başlatıldı, hazır olması bekleniyor..."
+                        echo "Backend uygulama başlatıldı, hazır olması bekleniyor..."
                         sleep 25
+
+                        # Frontend App build et
+                        echo "🎨 Frontend uygulaması build ediliyor..."
+                        docker build --platform linux/arm64 -f frontend/Dockerfile -t ${COMPOSE_PROJECT_NAME}-frontend ./frontend
+
+                        # Frontend App başlat - farklı port
+                        echo "🌐 Frontend uygulaması başlatılıyor (Port: $FRONTEND_PORT)..."
+                        docker run -d \\
+                            --name ${COMPOSE_PROJECT_NAME}-frontend-1 \\
+                            --network ${COMPOSE_PROJECT_NAME}_app-network \\
+                            -e NODE_ENV=production \\
+                            -e VITE_API_BASE_URL=http://localhost:$APP_PORT \\
+                            -p $FRONTEND_PORT:80 \\
+                            --platform linux/arm64 \\
+                            ${COMPOSE_PROJECT_NAME}-frontend
+
+                        echo "Frontend uygulama başlatıldı"
+                        sleep 15
 
                         # Container'ların durumunu kontrol et
                         echo "📋 Container durumları:"
@@ -190,7 +209,8 @@ pipeline {
                         echo "🌐 Erişim noktaları:"
                         echo "  - Database: localhost:$DB_PORT"
                         echo "  - Selenium Hub: localhost:$SELENIUM_PORT"
-                        echo "  - Application: localhost:$APP_PORT"
+                        echo "  - Backend API: localhost:$APP_PORT"
+                        echo "  - Frontend: localhost:$FRONTEND_PORT"
                     '''
 
                     echo "✅ Tüm servisler çalışıyor"
@@ -208,6 +228,7 @@ pipeline {
                         DB_PORT=5433
                         SELENIUM_PORT=4445
                         APP_PORT=8083
+                        FRONTEND_PORT=3001
 
                         # Container durumlarını kontrol et
                         echo "📋 Çalışan container'lar:"
@@ -241,11 +262,23 @@ pipeline {
                         }
                         echo "✅ Backend sağlık kontrolü tamamlandı"
 
+                        # Frontend uygulama kontrolü - yeni eklenen
+                        echo "🌐 Frontend uygulama kontrol ediliyor (Port: $FRONTEND_PORT)..."
+                        timeout 60 bash -c "until curl -s http://localhost:$FRONTEND_PORT/; do echo 'Frontend ana sayfa bekleniyor...'; sleep 5; done" || {
+                            echo "⚠️ Frontend ana sayfa da erişilemiyor, container logları:"
+                            docker logs --tail 10 ${COMPOSE_PROJECT_NAME}-frontend-1
+                            echo "🔄 Frontend başlatılması için daha fazla bekleniyor..."
+                            sleep 30
+                            curl -s http://localhost:$FRONTEND_PORT/ || echo "❌ Frontend hala erişilemiyor"
+                        }
+                        echo "✅ Frontend sağlık kontrolü tamamlandı"
+
                         echo "🎉 Tüm sağlık kontrolleri tamamlandı!"
                         echo "🌐 Erişim Noktaları:"
                         echo "  - Database: localhost:$DB_PORT"
                         echo "  - Selenium Hub: localhost:$SELENIUM_PORT"
                         echo "  - Application: localhost:$APP_PORT"
+                        echo "  - Frontend: localhost:$FRONTEND_PORT"
                     '''
 
                     echo "✅ Tüm servisler sağlıklı"
@@ -365,11 +398,13 @@ pipeline {
 
                         # Container'ları durdur ve sil
                         docker stop ${COMPOSE_PROJECT_NAME}-app-1 || true
+                        docker stop ${COMPOSE_PROJECT_NAME}-frontend-1 || true
                         docker stop ${COMPOSE_PROJECT_NAME}-selenium-chrome || true
                         docker stop ${COMPOSE_PROJECT_NAME}-selenium-hub || true
                         docker stop ${COMPOSE_PROJECT_NAME}-db-1 || true
 
                         docker rm ${COMPOSE_PROJECT_NAME}-app-1 || true
+                        docker rm ${COMPOSE_PROJECT_NAME}-frontend-1 || true
                         docker rm ${COMPOSE_PROJECT_NAME}-selenium-chrome || true
                         docker rm ${COMPOSE_PROJECT_NAME}-selenium-hub || true
                         docker rm ${COMPOSE_PROJECT_NAME}-db-1 || true
@@ -377,8 +412,9 @@ pipeline {
                         # Network'ü sil
                         docker network rm ${COMPOSE_PROJECT_NAME}_app-network || true
 
-                        # Build edilen imajı temizle
+                        # Build edilen imajları temizle
                         docker rmi ${COMPOSE_PROJECT_NAME}-app || true
+                        docker rmi ${COMPOSE_PROJECT_NAME}-frontend || true
                     fi
 
                     # Kullanılmayan imajları temizle

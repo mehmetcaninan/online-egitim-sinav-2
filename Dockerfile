@@ -40,17 +40,7 @@ RUN ./mvnw dependency:go-offline -B
 # Kaynak kodları kopyala
 COPY src src
 
-# Frontend build et (eğer varsa)
-COPY frontend frontend
-RUN if [ -d "frontend" ]; then \
-    cd frontend && \
-    npm ci && \
-    npm run build && \
-    mkdir -p ../src/main/resources/static && \
-    cp -r dist/* ../src/main/resources/static/; \
-    fi || echo "Frontend klasörü bulunamadı, atlanıyor..."
-
-# Spring Boot executable JAR oluştur - düzeltilmiş build süreci
+# Spring Boot executable JAR oluştur - frontend build işlemi kaldırıldı
 RUN ./mvnw clean package -DskipTests -Dspring-boot.repackage.skip=false
 
 # JAR dosyasını gerçek adıyla kopyala
