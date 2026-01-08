@@ -127,39 +127,105 @@ EOF
                             echo "✅ Chrome browser mevcut"
                         fi
 
-                        # ChromeDriver kontrol ve kurulum
+                        # ChromeDriver kontrol - Gerçek dosya konumlarını da dahil et
                         CHROMEDRIVER_PATH=""
-                        for path in "/usr/local/bin/chromedriver" "/opt/homebrew/bin/chromedriver"; do
-                            if [ -f "$path" ]; then
-                                CHROMEDRIVER_PATH="$path"
-                                break
-                            fi
-                        done
 
-                        if [ -z "$CHROMEDRIVER_PATH" ]; then
-                            echo "⚠️ ChromeDriver bulunamadı, kurulum yapılmaye çalışılıyor..."
+                        # Olası ChromeDriver konumlarını kontrol et
+                        echo "🔍 ChromeDriver konumları kontrol ediliyor..."
+                        POSSIBLE_PATHS=(
+                            "/usr/local/bin/chromedriver"
+                            "/opt/homebrew/bin/chromedriver"
+                            "/usr/bin/chromedriver"
+                            "$(which chromedriver 2>/dev/null)"
+                            "/opt/homebrew/Caskroom/chromedriver/*/chromedriver-mac-arm64/chromedriver"
+                            "/opt/homebrew/Caskroom/chromedriver/*/chromedriver"
+                            "/usr/local/Caskroom/chromedriver/*/chromedriver-mac-arm64/chromedriver"
+                            "/usr/local/Caskroom/chromedriver/*/chromedriver"
+                        )
 
-                            # Homebrew ile ChromeDriver kurulumu dene
-                            if command -v brew >/dev/null 2>&1; then
-                                brew install chromedriver || echo "Brew ile ChromeDriver kurulumu başarısız"
-                                # Tekrar kontrol et
-                                for path in "/usr/local/bin/chromedriver" "/opt/homebrew/bin/chromedriver"; do
-                                    if [ -f "$path" ]; then
-                                        CHROMEDRIVER_PATH="$path"
-                                        break
+                        # Glob pattern'leri için özel kontrol
+                        for pattern in "${POSSIBLE_PATHS[@]}"; do
+                            if [[ "$pattern" == *"*"* ]]; then
+                                # Glob pattern - expand et
+                                for expanded_path in $pattern; do
+                                    if [ -f "$expanded_path" ]; then
+                                        CHROMEDRIVER_PATH="$expanded_path"
+                                        echo "✅ ChromeDriver bulundu (glob): $CHROMEDRIVER_PATH"
+                                        break 2
                                     fi
                                 done
                             else
-                                echo "❌ Homebrew bulunamadı, ChromeDriver manuel kurulmalı"
+                                # Normal path
+                                if [ -n "$pattern" ] && [ -f "$pattern" ]; then
+                                    CHROMEDRIVER_PATH="$pattern"
+                                    echo "✅ ChromeDriver bulundu: $CHROMEDRIVER_PATH"
+                                    break
+                                fi
+                            fi
+                        done
+
+                        # ChromeDriver bulunamadıysa Homebrew'den direkt kontrol et
+                        if [ -z "$CHROMEDRIVER_PATH" ]; then
+                            echo "⚠️ ChromeDriver bulunamadı, Homebrew caskroom'dan direkt aranıyor..."
+
+                            if command -v brew >/dev/null 2>&1; then
+                                echo "🍺 Homebrew var, caskroom dizinleri kontrol ediliyor..."
+
+                                # Homebrew caskroom'dan gerçek yolu bul
+                                HOMEBREW_PREFIX=$(brew --prefix)
+                                CASKROOM_DIR="$HOMEBREW_PREFIX/Caskroom/chromedriver"
+
+                                if [ -d "$CASKROOM_DIR" ]; then
+                                    echo "📁 Caskroom dizini bulundu: $CASKROOM_DIR"
+
+                                    # En son versiyon dizinini bul
+                                    LATEST_VERSION_DIR=$(find "$CASKROOM_DIR" -maxdepth 1 -type d -name "[0-9]*" | sort -V | tail -1)
+
+                                    if [ -n "$LATEST_VERSION_DIR" ]; then
+                                        echo "📂 En son versiyon dizini: $LATEST_VERSION_DIR"
+
+                                        # ChromeDriver'ı bu dizinde ara
+                                        for subdir in "chromedriver-mac-arm64" "chromedriver-mac-x64" "."; do
+                                            POTENTIAL_PATH="$LATEST_VERSION_DIR/$subdir/chromedriver"
+                                            if [ -f "$POTENTIAL_PATH" ]; then
+                                                CHROMEDRIVER_PATH="$POTENTIAL_PATH"
+                                                echo "✅ ChromeDriver gerçek yolu bulundu: $CHROMEDRIVER_PATH"
+                                                break
+                                            fi
+                                        done
+                                    fi
+                                fi
+
+                                if [ -z "$CHROMEDRIVER_PATH" ]; then
+                                    echo "ℹ️ ChromeDriver Homebrew caskroom'da bulunamadı"
+                                fi
+                            else
+                                echo "ℹ️ Homebrew bulunamadı"
                             fi
                         fi
 
-                        if [ -n "$CHROMEDRIVER_PATH" ]; then
+                        # Final kontrol ve Gatekeeper bypass
+                        if [ -n "$CHROMEDRIVER_PATH" ] && [ -f "$CHROMEDRIVER_PATH" ]; then
                             echo "✅ ChromeDriver mevcut: $CHROMEDRIVER_PATH"
-                            # ChromeDriver version kontrolünü skip et (Gatekeeper problemi)
-                            echo "✅ ChromeDriver kurulu ve erişilebilir"
+
+                            # macOS Gatekeeper bypass - ChromeDriver'ı güvenilir yap
+                            echo "🔓 macOS Gatekeeper bypass yapılıyor..."
+                            xattr -d com.apple.quarantine "$CHROMEDRIVER_PATH" 2>/dev/null || echo "Quarantine attribute yok (normal)"
+
+                            # ChromeDriver executable yapalım
+                            chmod +x "$CHROMEDRIVER_PATH" 2>/dev/null || echo "Chmod başarısız (yetki sorunu)"
+
+                            # Basit test
+                            if "$CHROMEDRIVER_PATH" --version >/dev/null 2>&1; then
+                                echo "✅ ChromeDriver test başarılı: $("$CHROMEDRIVER_PATH" --version)"
+                            else
+                                echo "⚠️ ChromeDriver test başarısız ama yine de deneyeceğiz"
+                            fi
                         else
-                            echo "⚠️ ChromeDriver bulunamadı"
+                            echo "❌ ChromeDriver bulunamadı - Manuel kurulum gerekebilir"
+                            echo "💡 ChromeDriver kurulum önerisi:"
+                            echo "   brew install chromedriver"
+                            echo "   veya https://chromedriver.chromium.org/ adresinden indirin"
                         fi
 
                         echo "Önceki container'ları temizliyorum..."
