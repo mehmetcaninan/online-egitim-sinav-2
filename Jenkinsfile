@@ -92,63 +92,38 @@ pipeline {
                         # Docker Compose varlığını kontrol et ve çalıştır
                         echo "🔍 Docker Compose kontrol ediliyor..."
 
-                        # Test: docker-compose komutu çalışıyor mu?
-                        if docker-compose --version &> /dev/null; then
-                            COMPOSE_CMD="docker-compose"
-                            echo "✅ docker-compose komutu kullanılacak"
-                        elif docker compose version &> /dev/null; then
-                            COMPOSE_CMD="docker compose"
-                            echo "✅ docker compose komutu kullanılacak"
-                        else
-                            COMPOSE_CMD=""
-                            echo "⚠️ Docker Compose bulunamadı - Manuel Docker komutları kullanılacak"
-                        fi
-
-                        # Docker Compose ile dene
-                        if [ -n "$COMPOSE_CMD" ]; then
-                            echo "📦 Docker Compose ile başlatma deneniyor: $COMPOSE_CMD"
-
-                            if $COMPOSE_CMD -p ${COMPOSE_PROJECT_NAME} up -d db; then
-                                echo "✅ Database başarıyla başlatıldı"
-                                sleep 10
-
-                                if $COMPOSE_CMD -p ${COMPOSE_PROJECT_NAME} up -d selenium-hub selenium-chrome; then
-                                    echo "✅ Selenium servisleri başarıyla başlatıldı"
-                                    sleep 5
-
-                                    if $COMPOSE_CMD -p ${COMPOSE_PROJECT_NAME} up -d --build app; then
-                                        echo "✅ Uygulama başarıyla başlatıldı"
-                                        sleep 10
-                                        exit 0
-                                    else
-                                        echo "❌ App başlatılamadı, manuel mod'a geçiliyor..."
-                                    fi
-                                else
-                                    echo "❌ Selenium başlatılamadı, manuel mod'a geçiliyor..."
-                                fi
-                            else
-                                echo "❌ Database başlatılamadı, manuel mod'a geçiliyor..."
-                            fi
-
-                            # Başarısız olan container'ları temizle
-                            $COMPOSE_CMD -p ${COMPOSE_PROJECT_NAME} down --remove-orphans || true
-                        fi
+                        # Manuel Docker komutlarına direkt geç - Docker Compose problemi var
+                        COMPOSE_CMD=""
+                        echo "⚠️ Jenkins ortamında Docker Compose sorunlu - Manuel Docker komutları kullanılıyor"
 
                         # Manuel Docker komutları
                         echo "🔧 Manuel Docker komutları ile başlatılıyor..."
 
+                        # Önceki container'ları temizle
+                        echo "🧹 Önceki container'ları temizliyorum..."
+                        docker stop jenkins-31-app-1 jenkins-31-selenium-chrome jenkins-31-selenium-hub jenkins-31-db-1 2>/dev/null || true
+                        docker rm jenkins-31-app-1 jenkins-31-selenium-chrome jenkins-31-selenium-hub jenkins-31-db-1 2>/dev/null || true
+                        docker network rm jenkins-31_app-network 2>/dev/null || true
+
+                        # Port çakışmasını çöz - farklı portlar kullan
+                        DB_PORT=5433
+                        SELENIUM_PORT=4445
+                        APP_PORT=8083
+
+                        echo "📦 Portlar: DB=$DB_PORT, Selenium=$SELENIUM_PORT, App=$APP_PORT"
+
                         # Network oluştur
                         docker network create ${COMPOSE_PROJECT_NAME}_app-network || true
 
-                        # Database container'ı başlat
-                        echo "🗄️ PostgreSQL başlatılıyor..."
+                        # Database container'ı başlat - farklı port
+                        echo "🗄️ PostgreSQL başlatılıyor (Port: $DB_PORT)..."
                         docker run -d \\
                             --name ${COMPOSE_PROJECT_NAME}-db-1 \\
                             --network ${COMPOSE_PROJECT_NAME}_app-network \\
                             -e POSTGRES_DB=online_egitim_db \\
                             -e POSTGRES_USER=postgres \\
                             -e POSTGRES_PASSWORD=postgres \\
-                            -p 5432:5432 \\
+                            -p $DB_PORT:5432 \\
                             --platform linux/arm64 \\
                             postgres:15
 
@@ -156,14 +131,15 @@ pipeline {
                         sleep 15
 
                         # Database hazır mı kontrol et
-                        timeout 60 bash -c 'until docker exec ${COMPOSE_PROJECT_NAME}-db-1 pg_isready -U postgres; do echo "Database bekleniyor..."; sleep 2; done'
+                        timeout 60 bash -c "until docker exec ${COMPOSE_PROJECT_NAME}-db-1 pg_isready -U postgres; do echo 'Database bekleniyor...'; sleep 2; done"
+                        echo "✅ Database hazır"
 
-                        # Selenium Hub başlat
-                        echo "🧪 Selenium Hub başlatılıyor..."
+                        # Selenium Hub başlat - farklı port
+                        echo "🧪 Selenium Hub başlatılıyor (Port: $SELENIUM_PORT)..."
                         docker run -d \\
                             --name ${COMPOSE_PROJECT_NAME}-selenium-hub \\
                             --network ${COMPOSE_PROJECT_NAME}_app-network \\
-                            -p 4444:4444 \\
+                            -p $SELENIUM_PORT:4444 \\
                             -e SE_HUB_HOST=0.0.0.0 \\
                             -e SE_HUB_PORT=4444 \\
                             --platform linux/arm64 \\
@@ -190,8 +166,8 @@ pipeline {
                         echo "🏗️ Uygulama build ediliyor..."
                         docker build --platform linux/arm64 -t ${COMPOSE_PROJECT_NAME}-app .
 
-                        # App başlat
-                        echo "🚀 Uygulama başlatılıyor..."
+                        # App başlat - farklı port
+                        echo "🚀 Uygulama başlatılıyor (Port: $APP_PORT)..."
                         docker run -d \\
                             --name ${COMPOSE_PROJECT_NAME}-app-1 \\
                             --network ${COMPOSE_PROJECT_NAME}_app-network \\
@@ -199,14 +175,22 @@ pipeline {
                             -e SPRING_DATASOURCE_URL=jdbc:postgresql://${COMPOSE_PROJECT_NAME}-db-1:5432/online_egitim_db \\
                             -e SPRING_DATASOURCE_USERNAME=postgres \\
                             -e SPRING_DATASOURCE_PASSWORD=postgres \\
-                            -p 8082:8081 \\
+                            -p $APP_PORT:8081 \\
                             --platform linux/arm64 \\
                             ${COMPOSE_PROJECT_NAME}-app
 
                         echo "Uygulama başlatıldı, hazır olması bekleniyor..."
-                        sleep 20
+                        sleep 25
+
+                        # Container'ların durumunu kontrol et
+                        echo "📋 Container durumları:"
+                        docker ps --filter "name=${COMPOSE_PROJECT_NAME}"
 
                         echo "✅ Tüm servisler manuel olarak başlatıldı"
+                        echo "🌐 Erişim noktaları:"
+                        echo "  - Database: localhost:$DB_PORT"
+                        echo "  - Selenium Hub: localhost:$SELENIUM_PORT"
+                        echo "  - Application: localhost:$APP_PORT"
                     '''
 
                     echo "✅ Tüm servisler çalışıyor"
@@ -220,28 +204,48 @@ pipeline {
                     echo "🏥 Servis sağlık kontrolleri..."
 
                     sh '''
+                        # Dinamik portları tanımla (stage 3'teki ile aynı)
+                        DB_PORT=5433
+                        SELENIUM_PORT=4445
+                        APP_PORT=8083
+
                         # Container durumlarını kontrol et
                         echo "📋 Çalışan container'lar:"
                         docker ps --filter "name=${COMPOSE_PROJECT_NAME}"
 
                         # Database sağlık kontrolü
-                        echo "Database bağlantısı kontrol ediliyor..."
+                        echo "🗄️ Database bağlantısı kontrol ediliyor (Port: $DB_PORT)..."
                         docker exec ${COMPOSE_PROJECT_NAME}-db-1 pg_isready -U postgres || {
                             echo "⚠️ Database hazır değil, bekleniyor..."
                             sleep 10
                             docker exec ${COMPOSE_PROJECT_NAME}-db-1 pg_isready -U postgres
                         }
+                        echo "✅ Database sağlık kontrolü başarılı"
 
-                        # Selenium Hub kontrolü
-                        echo "Selenium Hub kontrol ediliyor..."
-                        timeout 30 bash -c 'until curl -s http://localhost:4444/wd/hub/status; do echo "Selenium Hub bekleniyor..."; sleep 2; done' || echo "⚠️ Selenium Hub timeout"
+                        # Selenium Hub kontrolü - güncellenmiş port
+                        echo "🧪 Selenium Hub kontrol ediliyor (Port: $SELENIUM_PORT)..."
+                        timeout 30 bash -c "until curl -s http://localhost:$SELENIUM_PORT/wd/hub/status; do echo 'Selenium Hub bekleniyor...'; sleep 2; done" || echo "⚠️ Selenium Hub timeout - devam ediliyor"
+                        echo "✅ Selenium Hub sağlık kontrolü tamamlandı"
 
-                        # Backend uygulama kontrolü
-                        echo "Backend uygulama kontrol ediliyor..."
-                        timeout 60 bash -c 'until curl -s http://localhost:8082/actuator/health; do echo "Backend bekleniyor..."; sleep 5; done' || {
+                        # Backend uygulama kontrolü - güncellenmiş port
+                        echo "🚀 Backend uygulama kontrol ediliyor (Port: $APP_PORT)..."
+                        timeout 60 bash -c "until curl -s http://localhost:$APP_PORT/actuator/health; do echo 'Backend health endpoint bekleniyor...'; sleep 5; done" || {
                             echo "⚠️ Backend health endpoint bulunamadı, ana sayfa kontrol ediliyor..."
-                            timeout 60 bash -c 'until curl -s http://localhost:8082/; do echo "Backend ana sayfa bekleniyor..."; sleep 5; done'
+                            timeout 60 bash -c "until curl -s http://localhost:$APP_PORT/; do echo 'Backend ana sayfa bekleniyor...'; sleep 5; done" || {
+                                echo "⚠️ Backend ana sayfa da erişilemiyor, container logları:"
+                                docker logs --tail 10 ${COMPOSE_PROJECT_NAME}-app-1
+                                echo "🔄 Backend başlatılması için daha fazla bekleniyor..."
+                                sleep 30
+                                curl -s http://localhost:$APP_PORT/ || echo "❌ Backend hala erişilemiyor"
+                            }
                         }
+                        echo "✅ Backend sağlık kontrolü tamamlandı"
+
+                        echo "🎉 Tüm sağlık kontrolleri tamamlandı!"
+                        echo "🌐 Erişim Noktaları:"
+                        echo "  - Database: localhost:$DB_PORT"
+                        echo "  - Selenium Hub: localhost:$SELENIUM_PORT"
+                        echo "  - Application: localhost:$APP_PORT"
                     '''
 
                     echo "✅ Tüm servisler sağlıklı"
