@@ -42,14 +42,14 @@ public class AdminPanelSeleniumTest extends BaseSeleniumTest {
                 }
             } else {
                 // Fallback - en azından giriş yapılabilmiş mi?
-                boolean userLoggedIn = isElementPresent("//button[contains(text(),'Çıkış') or contains(text(),'Logout')]");
+                boolean userLoggedIn = isElementPresent(By.xpath("//button[contains(text(),'Çıkış') or contains(text(),'Logout')]"));
                 System.out.println("✅ Temel giriş kontrolü: " + (userLoggedIn ? "Başarılı" : "Kontrol edilemiyor"));
                 Assertions.assertTrue(true); // Test geçsin
             }
 
         } catch (Exception e) {
             System.out.println("⚠️ Test hatası: " + e.getMessage());
-            Assertions.assertTrue(urlContains("localhost")); // En azından sayfa erişilebilir
+            Assertions.assertTrue(driver.getCurrentUrl().contains("localhost")); // En azından sayfa erişilebilir
         }
     }
 
@@ -65,8 +65,8 @@ public class AdminPanelSeleniumTest extends BaseSeleniumTest {
                 System.out.println("✅ Kullanıcı yönetim paneli bulundu");
 
                 // Kullanıcı ekleme butonunu arama
-                boolean hasAddUserOption = isElementPresent("//button[contains(text(),'Ekle') or contains(text(),'Add') or contains(text(),'Yeni')]") ||
-                                          isElementPresent("//a[contains(text(),'Ekle') or contains(text(),'Add')]");
+                boolean hasAddUserOption = isElementPresent(By.xpath("//button[contains(text(),'Ekle') or contains(text(),'Add') or contains(text(),'Yeni')]")) ||
+                                          isElementPresent(By.xpath("//a[contains(text(),'Ekle') or contains(text(),'Add')]"));
 
                 if (hasAddUserOption) {
                     System.out.println("✅ Kullanıcı ekleme seçenği mevcut");
@@ -75,7 +75,7 @@ public class AdminPanelSeleniumTest extends BaseSeleniumTest {
                 Assertions.assertTrue(true);
             } else {
                 System.out.println("⚠️ Kullanıcı yönetim paneli bulunamadı - temel admin kontrolü");
-                Assertions.assertTrue(urlContains("localhost"));
+                Assertions.assertTrue(driver.getCurrentUrl().contains("localhost"));
             }
 
         } catch (Exception e) {
@@ -98,15 +98,15 @@ public class AdminPanelSeleniumTest extends BaseSeleniumTest {
             } else {
                 System.out.println("⚠️ Ayarlar paneli bulunamadı - admin paneli kontrolü");
                 // Admin panelinde olduğumuzdan emin olalım
-                boolean inAdminArea = urlContains("admin") ||
-                                    isElementPresent("//*[contains(text(),'Admin') or contains(text(),'Yönetici')]");
+                boolean inAdminArea = driver.getCurrentUrl().contains("admin") ||
+                                    isElementPresent(By.xpath("//*[contains(text(),'Admin') or contains(text(),'Yönetici')]"));
                 System.out.println("Admin area kontrolü: " + inAdminArea);
                 Assertions.assertTrue(true);
             }
 
         } catch (Exception e) {
             System.out.println("⚠️ Sistem ayarları testi hatası: " + e.getMessage());
-            Assertions.assertTrue(urlContains("localhost"));
+            Assertions.assertTrue(driver.getCurrentUrl().contains("localhost"));
         }
     }
 
@@ -114,18 +114,18 @@ public class AdminPanelSeleniumTest extends BaseSeleniumTest {
     private void performAdminLogin() {
         try {
             // Giriş formunu bulup doldur
-            if (isElementPresent("//input[@name='username' or @name='email' or @type='email']")) {
+            if (isElementPresent(By.xpath("//input[@name='username' or @name='email' or @type='email']"))) {
                 WebElement usernameField = driver.findElement(By.xpath("//input[@name='username' or @name='email' or @type='email']"));
                 usernameField.clear();
                 usernameField.sendKeys("admin");
 
-                if (isElementPresent("//input[@name='password' or @type='password']")) {
+                if (isElementPresent(By.xpath("//input[@name='password' or @type='password']"))) {
                     WebElement passwordField = driver.findElement(By.xpath("//input[@name='password' or @type='password']"));
                     passwordField.clear();
                     passwordField.sendKeys("123456");
 
                     // Giriş butonuna tıkla
-                    if (isElementPresent("//button[@type='submit' or contains(text(),'Giriş') or contains(text(),'Login')]")) {
+                    if (isElementPresent(By.xpath("//button[@type='submit' or contains(text(),'Giriş') or contains(text(),'Login')]"))) {
                         WebElement loginButton = driver.findElement(By.xpath("//button[@type='submit' or contains(text(),'Giriş') or contains(text(),'Login')]"));
                         loginButton.click();
                         waitForPageLoad();
@@ -143,9 +143,9 @@ public class AdminPanelSeleniumTest extends BaseSeleniumTest {
             // Admin dashboard'ın yüklenmesini bekle
             Thread.sleep(3000);
 
-            return urlContains("admin") ||
-                   isElementPresent("//*[contains(text(),'Admin Panel') or contains(text(),'Yönetici')]") ||
-                   isElementPresent("//h1[contains(text(),'Admin') or contains(text(),'Dashboard')]");
+            return wait.until(urlContains("admin")) ||
+                   isElementPresent(By.xpath("//*[contains(text(),'Admin Panel') or contains(text(),'Yönetici')]")) ||
+                   isElementPresent(By.xpath("//h1[contains(text(),'Admin') or contains(text(),'Dashboard')]"));
 
         } catch (Exception e) {
             return false;
@@ -154,16 +154,16 @@ public class AdminPanelSeleniumTest extends BaseSeleniumTest {
 
     private boolean checkAdminElements() {
         // Admin panelinde bulunması gereken temel elementler
-        return isElementPresent("//nav") || // Navigasyon menüsü
-               isElementPresent("//*[contains(text(),'Kullanıcı') or contains(text(),'User')]") || // Kullanıcı yönetimi
-               isElementPresent("//*[contains(text(),'Sınav') or contains(text(),'Exam')]") || // Sınav yönetimi
-               isElementPresent("//*[contains(text(),'Rapor') or contains(text(),'Report')]"); // Raporlar
+        return isElementPresent(By.xpath("//nav")) || // Navigasyon menüsü
+               isElementPresent(By.xpath("//*[contains(text(),'Kullanıcı') or contains(text(),'User')]")) || // Kullanıcı yönetimi
+               isElementPresent(By.xpath("//*[contains(text(),'Sınav') or contains(text(),'Exam')]")) || // Sınav yönetimi
+               isElementPresent(By.xpath("//*[contains(text(),'Rapor') or contains(text(),'Report')]")); // Raporlar
     }
 
     private boolean navigateToUserManagement() {
         try {
             // Kullanıcı yönetimi linkini arama ve tıklama
-            if (isElementPresent("//a[contains(text(),'Kullanıcı') or contains(text(),'User')]")) {
+            if (isElementPresent(By.xpath("//a[contains(text(),'Kullanıcı') or contains(text(),'User')]"))) {
                 driver.findElement(By.xpath("//a[contains(text(),'Kullanıcı') or contains(text(),'User')]")).click();
                 waitForPageLoad();
                 return true;
@@ -177,7 +177,7 @@ public class AdminPanelSeleniumTest extends BaseSeleniumTest {
     private boolean navigateToSettings() {
         try {
             // Ayarlar linkini arama ve tıklama
-            if (isElementPresent("//a[contains(text(),'Ayar') or contains(text(),'Setting')]")) {
+            if (isElementPresent(By.xpath("//a[contains(text(),'Ayar') or contains(text(),'Setting')]"))) {
                 driver.findElement(By.xpath("//a[contains(text(),'Ayar') or contains(text(),'Setting')]")).click();
                 waitForPageLoad();
                 return true;

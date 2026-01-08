@@ -10,6 +10,7 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.htmlunit.HtmlUnitDriver;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.ExpectedCondition;
 
 import java.time.Duration;
 
@@ -225,5 +226,19 @@ public abstract class BaseSeleniumTest {
     protected void scrollToElement(By locator) {
         WebElement element = driver.findElement(locator);
         ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", element);
+    }
+
+    // Eksik metodlar ekleniyor
+    protected void navigateToHome() {
+        driver.get(getBaseUrl());
+    }
+
+    protected ExpectedCondition<Boolean> urlContains(String partialUrl) {
+        return ExpectedConditions.urlContains(partialUrl);
+    }
+
+    protected void waitForPageLoad() {
+        wait.until(webDriver -> ((JavascriptExecutor) webDriver)
+            .executeScript("return document.readyState").equals("complete"));
     }
 }

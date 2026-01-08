@@ -41,14 +41,14 @@ public class ExamTakingSeleniumTest extends BaseSeleniumTest {
                 Assertions.assertTrue(true);
             } else {
                 System.out.println("⚠️ Öğrenci dashboard'ı bulunamadı");
-                boolean loggedIn = isElementPresent("//button[contains(text(),'Çıkış') or contains(text(),'Logout')]");
+                boolean loggedIn = isElementPresent(By.xpath("//button[contains(text(),'Çıkış') or contains(text(),'Logout')]"));
                 System.out.println("Giriş durumu: " + loggedIn);
                 Assertions.assertTrue(true);
             }
 
         } catch (Exception e) {
             System.out.println("⚠️ Test hatası: " + e.getMessage());
-            Assertions.assertTrue(urlContains("localhost"));
+            Assertions.assertTrue(driver.getCurrentUrl().contains("localhost"));
         }
     }
 
@@ -81,7 +81,7 @@ public class ExamTakingSeleniumTest extends BaseSeleniumTest {
                 Assertions.assertTrue(true);
             } else {
                 System.out.println("⚠️ Sınav başlatma işlemi bulunamadı");
-                Assertions.assertTrue(urlContains("localhost"));
+                Assertions.assertTrue(driver.getCurrentUrl().contains("localhost"));
             }
 
         } catch (Exception e) {
@@ -156,7 +156,7 @@ public class ExamTakingSeleniumTest extends BaseSeleniumTest {
 
                 Assertions.assertTrue(true);
             } else {
-                Assertions.assertTrue(urlContains("localhost"));
+                Assertions.assertTrue(driver.getCurrentUrl().contains("localhost"));
             }
 
         } catch (Exception e) {
@@ -168,17 +168,17 @@ public class ExamTakingSeleniumTest extends BaseSeleniumTest {
     // Helper metodlar
     private void performStudentLogin() {
         try {
-            if (isElementPresent("//input[@name='username' or @name='email' or @type='email']")) {
+            if (isElementPresent(By.xpath("//input[@name='username' or @name='email' or @type='email']"))) {
                 WebElement usernameField = driver.findElement(By.xpath("//input[@name='username' or @name='email' or @type='email']"));
                 usernameField.clear();
                 usernameField.sendKeys("ogrenci");
 
-                if (isElementPresent("//input[@name='password' or @type='password']")) {
+                if (isElementPresent(By.xpath("//input[@name='password' or @type='password']"))) {
                     WebElement passwordField = driver.findElement(By.xpath("//input[@name='password' or @type='password']"));
                     passwordField.clear();
                     passwordField.sendKeys("123456");
 
-                    if (isElementPresent("//button[@type='submit' or contains(text(),'Giriş') or contains(text(),'Login')]")) {
+                    if (isElementPresent(By.xpath("//button[@type='submit' or contains(text(),'Giriş') or contains(text(),'Login')]"))) {
                         WebElement loginButton = driver.findElement(By.xpath("//button[@type='submit' or contains(text(),'Giriş') or contains(text(),'Login')]"));
                         loginButton.click();
                         waitForPageLoad();
@@ -195,10 +195,10 @@ public class ExamTakingSeleniumTest extends BaseSeleniumTest {
         try {
             Thread.sleep(3000);
 
-            return urlContains("student") ||
-                   isElementPresent("//*[contains(text(),'Öğrenci') or contains(text(),'Student')]") ||
-                   isElementPresent("//h1[contains(text(),'Dashboard')]") ||
-                   isElementPresent("//*[contains(text(),'Sınavlar') or contains(text(),'Exams')]");
+            return driver.getCurrentUrl().contains("student") ||
+                   isElementPresent(By.xpath("//*[contains(text(),'Öğrenci') or contains(text(),'Student')]")) ||
+                   isElementPresent(By.xpath("//h1[contains(text(),'Dashboard')]")) ||
+                   isElementPresent(By.xpath("//*[contains(text(),'Sınavlar') or contains(text(),'Exams')]"));
 
         } catch (Exception e) {
             return false;
@@ -207,11 +207,11 @@ public class ExamTakingSeleniumTest extends BaseSeleniumTest {
 
     private boolean checkAvailableExams() {
         // Mevcut sınavları kontrol et
-        return isElementPresent("//*[contains(text(),'Sınav') or contains(text(),'Exam')]") ||
-               isElementPresent("//div[contains(@class,'exam') or contains(@class,'test')]") ||
-               isElementPresent("//ul[contains(@class,'exam-list')]") ||
-               isElementPresent("//table") || // Sınav listesi tablo olarak gösteriliyor olabilir
-               isElementPresent("//button[contains(text(),'Başla') or contains(text(),'Start')]");
+        return isElementPresent(By.xpath("//*[contains(text(),'Sınav') or contains(text(),'Exam')]")) ||
+               isElementPresent(By.xpath("//div[contains(@class,'exam') or contains(@class,'test')]")) ||
+               isElementPresent(By.xpath("//ul[contains(@class,'exam-list')]")) ||
+               isElementPresent(By.xpath("//table")) || // Sınav listesi tablo olarak gösteriliyor olabilir
+               isElementPresent(By.xpath("//button[contains(text(),'Başla') or contains(text(),'Start')]"));
     }
 
     private boolean attemptStartExam() {
@@ -225,7 +225,7 @@ public class ExamTakingSeleniumTest extends BaseSeleniumTest {
             };
 
             for (String selector : startSelectors) {
-                if (isElementPresent(selector)) {
+                if (isElementPresent(By.xpath(selector))) {
                     driver.findElement(By.xpath(selector)).click();
                     waitForPageLoad();
                     return true;
@@ -240,31 +240,31 @@ public class ExamTakingSeleniumTest extends BaseSeleniumTest {
 
     private boolean checkExamPageElements() {
         // Sınav sayfasında olması gereken elementler
-        return isElementPresent("//form") ||
-               isElementPresent("//*[contains(text(),'Soru') or contains(text(),'Question')]") ||
-               isElementPresent("//input[@type='radio' or @type='checkbox']") ||
-               isElementPresent("//button[contains(text(),'Sonraki') or contains(text(),'Next')]") ||
-               isElementPresent("//div[contains(@class,'question')]");
+        return isElementPresent(By.xpath("//form")) ||
+               isElementPresent(By.xpath("//*[contains(text(),'Soru') or contains(text(),'Question')]")) ||
+               isElementPresent(By.xpath("//input[@type='radio' or @type='checkbox']")) ||
+               isElementPresent(By.xpath("//button[contains(text(),'Sonraki') or contains(text(),'Next')]")) ||
+               isElementPresent(By.xpath("//div[contains(@class,'question')]"));
     }
 
     private boolean checkQuestionsPresent() {
-        return isElementPresent("//input[@type='radio']") ||
-               isElementPresent("//input[@type='checkbox']") ||
-               isElementPresent("//textarea") ||
-               isElementPresent("//*[contains(text(),'A)') or contains(text(),'B)') or contains(text(),'C)')]");
+        return isElementPresent(By.xpath("//input[@type='radio']")) ||
+               isElementPresent(By.xpath("//input[@type='checkbox']")) ||
+               isElementPresent(By.xpath("//textarea")) ||
+               isElementPresent(By.xpath("//*[contains(text(),'A)') or contains(text(),'B)') or contains(text(),'C)')]"));
     }
 
     private boolean testQuestionNavigation() {
         try {
             // İleri/geri butonları
-            boolean hasNavigation = isElementPresent("//button[contains(text(),'Sonraki') or contains(text(),'Next')]") ||
-                                  isElementPresent("//button[contains(text(),'Önceki') or contains(text(),'Previous')]") ||
-                                  isElementPresent("//button[contains(text(),'İleri')]") ||
-                                  isElementPresent("//button[contains(text(),'Geri')]");
+            boolean hasNavigation = isElementPresent(By.xpath("//button[contains(text(),'Sonraki') or contains(text(),'Next')]")) ||
+                                  isElementPresent(By.xpath("//button[contains(text(),'Önceki') or contains(text(),'Previous')]")) ||
+                                  isElementPresent(By.xpath("//button[contains(text(),'İleri')]")) ||
+                                  isElementPresent(By.xpath("//button[contains(text(),'Geri')]"));
 
             // Soru numaraları
-            boolean hasQuestionNumbers = isElementPresent("//*[contains(text(),'1 /') or contains(text(),'Soru 1')]") ||
-                                       isElementPresent("//span[contains(@class,'question-number')]");
+            boolean hasQuestionNumbers = isElementPresent(By.xpath("//*[contains(text(),'1 /') or contains(text(),'Soru 1')]")) ||
+                                       isElementPresent(By.xpath("//span[contains(@class,'question-number')]"));
 
             return hasNavigation || hasQuestionNumbers;
         } catch (Exception e) {
@@ -275,7 +275,7 @@ public class ExamTakingSeleniumTest extends BaseSeleniumTest {
     private boolean testAnswerSelection() {
         try {
             // Cevap seçeneklerini bulup test et
-            if (isElementPresent("//input[@type='radio']")) {
+            if (isElementPresent(By.xpath("//input[@type='radio']"))) {
                 List<WebElement> radioButtons = driver.findElements(By.xpath("//input[@type='radio']"));
                 if (!radioButtons.isEmpty()) {
                     radioButtons.get(0).click(); // İlk seçeneği seç
@@ -299,7 +299,7 @@ public class ExamTakingSeleniumTest extends BaseSeleniumTest {
             };
 
             for (String selector : submitSelectors) {
-                if (isElementPresent(selector)) {
+                if (isElementPresent(By.xpath(selector))) {
                     driver.findElement(By.xpath(selector)).click();
                     waitForPageLoad();
                     return true;
@@ -313,9 +313,9 @@ public class ExamTakingSeleniumTest extends BaseSeleniumTest {
     }
 
     private boolean checkResultPage() {
-        return urlContains("result") ||
-               isElementPresent("//*[contains(text(),'Sonuç') or contains(text(),'Result')]") ||
-               isElementPresent("//*[contains(text(),'Puan') or contains(text(),'Score')]") ||
-               isElementPresent("//*[contains(text(),'Tamamlandı') or contains(text(),'Completed')]");
+        return driver.getCurrentUrl().contains("result") ||
+               isElementPresent(By.xpath("//*[contains(text(),'Sonuç') or contains(text(),'Result')]")) ||
+               isElementPresent(By.xpath("//*[contains(text(),'Puan') or contains(text(),'Score')]")) ||
+               isElementPresent(By.xpath("//*[contains(text(),'Tamamlandı') or contains(text(),'Completed')]"));
     }
 }

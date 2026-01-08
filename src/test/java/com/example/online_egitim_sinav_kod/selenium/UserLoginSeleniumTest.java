@@ -30,11 +30,11 @@ public class UserLoginSeleniumTest extends BaseSeleniumTest {
             System.out.println("📋 Sayfa içeriği özeti: " + pageSource.substring(0, Math.min(100, pageSource.length())) + "...");
 
             // Ana sayfada temel elementlerin varlığını kontrol et
-            boolean hasLoginElements = isElementPresent("//a[contains(text(),'Giriş') or contains(text(),'Login')]") ||
-                                     isElementPresent("//button[contains(text(),'Giriş') or contains(text(),'Login')]") ||
-                                     isElementPresent("//input[@name='username']") ||
-                                     isElementPresent("//input[@type='email']") ||
-                                     isElementPresent("//input[@placeholder*='mail']");
+            boolean hasLoginElements = isElementPresent(By.xpath("//a[contains(text(),'Giriş') or contains(text(),'Login')]")) ||
+                                     isElementPresent(By.xpath("//button[contains(text(),'Giriş') or contains(text(),'Login')]")) ||
+                                     isElementPresent(By.xpath("//input[@name='username']")) ||
+                                     isElementPresent(By.xpath("//input[@type='email']")) ||
+                                     isElementPresent(By.xpath("//input[@placeholder*='mail']"));
 
             if (hasLoginElements) {
                 System.out.println("✅ Giriş elementleri bulundu");
@@ -46,10 +46,11 @@ public class UserLoginSeleniumTest extends BaseSeleniumTest {
 
                 // Esnek sayfa kontrolü - sayfa yüklenmiş ve içerik var mı?
                 boolean pageLoaded = pageSource.length() > 100 &&
-                                   (urlContains("localhost:5173") || urlContains("localhost"));
+                                   (driver.getCurrentUrl().contains("localhost:5173") || driver.getCurrentUrl().contains("localhost"));
 
                 if (pageLoaded) {
                     System.out.println("✅ Sayfa başarıyla yüklendi (içerik: " + pageSource.length() + " karakter)");
+                    System.out.println("🎉 Test başarılı - Web uygulaması erişilebilir!");
                     Assertions.assertTrue(true);
                 } else {
                     System.out.println("❌ Sayfa düzgün yüklenemedi");
@@ -60,7 +61,7 @@ public class UserLoginSeleniumTest extends BaseSeleniumTest {
         } catch (Exception e) {
             System.out.println("⚠️ Test hatası: " + e.getMessage());
             // En azından sayfa erişilebilir olmalı
-            boolean serverReachable = urlContains("localhost");
+            boolean serverReachable = driver.getCurrentUrl().contains("localhost");
             if (serverReachable) {
                 System.out.println("✅ Test sunucusu erişilebilir");
                 Assertions.assertTrue(true);
@@ -78,19 +79,19 @@ public class UserLoginSeleniumTest extends BaseSeleniumTest {
 
         try {
             // Daha geniş element arama kriterleri
-            boolean hasLoginElements = isElementPresent("//input[@name='username']") ||
-                                     isElementPresent("//input[@name='password']") ||
-                                     isElementPresent("//input[@type='email']") ||
-                                     isElementPresent("//input[@type='password']");
+            boolean hasLoginElements = isElementPresent(By.xpath("//input[@name='username']")) ||
+                                     isElementPresent(By.xpath("//input[@name='password']")) ||
+                                     isElementPresent(By.xpath("//input[@type='email']")) ||
+                                     isElementPresent(By.xpath("//input[@type='password']"));
 
             if (hasLoginElements) {
                 System.out.println("✅ Giriş formu elementleri bulundu");
                 performLogin("wrong@example.com", "wrongpass");
 
                 // Hata mesajı veya giriş sayfasında kalma kontrolü
-                boolean hasErrorOrStayedOnLogin = isElementPresent("//*[contains(@class,'error') or contains(@class,'alert')]") ||
-                                                urlContains("login") ||
-                                                isElementPresent("//div[contains(@class,'notification')]");
+                boolean hasErrorOrStayedOnLogin = isElementPresent(By.xpath("//*[contains(@class,'error') or contains(@class,'alert')]")) ||
+                                                driver.getCurrentUrl().contains("login") ||
+                                                isElementPresent(By.xpath("//div[contains(@class,'notification')]"));
 
                 if (hasErrorOrStayedOnLogin) {
                     System.out.println("✅ Geçersiz giriş doğru şekilde engellenmiş");
@@ -104,7 +105,7 @@ public class UserLoginSeleniumTest extends BaseSeleniumTest {
 
                 // Sayfa içeriği kontrolü
                 String pageSource = driver.getPageSource();
-                boolean pageLoaded = pageSource.length() > 50 && urlContains("localhost");
+                boolean pageLoaded = pageSource.length() > 50 && driver.getCurrentUrl().contains("localhost");
 
                 if (pageLoaded) {
                     System.out.println("✅ Sayfa yüklendi (giriş formu olmasa da)");
@@ -118,13 +119,13 @@ public class UserLoginSeleniumTest extends BaseSeleniumTest {
 
         } catch (Exception e) {
             System.out.println("⚠️ Test hatası: " + e.getMessage());
-            // Esnek hata yönetimi
-            boolean serverReachable = urlContains("localhost");
+            // Esnek hata yönetimi - en azından sayfa erişilebilir mi?
+            boolean serverReachable = driver.getCurrentUrl().contains("localhost");
             if (serverReachable) {
-                System.out.println("✅ Sunucu erişilebilir - test geçti");
+                System.out.println("✅ Test sunucusu erişilebilir");
                 Assertions.assertTrue(true);
             } else {
-                Assertions.fail("Sunucu erişilemez: " + driver.getCurrentUrl());
+                Assertions.fail("Test sunucusu erişilemez durumda");
             }
         }
     }

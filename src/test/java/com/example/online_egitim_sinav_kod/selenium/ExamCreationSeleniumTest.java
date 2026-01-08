@@ -48,7 +48,7 @@ public class ExamCreationSeleniumTest extends BaseSeleniumTest {
 
         } catch (Exception e) {
             System.out.println("⚠️ Test hatası: " + e.getMessage());
-            Assertions.assertTrue(urlContains("localhost"));
+            Assertions.assertTrue(driver.getCurrentUrl().contains("localhost"));
         }
     }
 
@@ -78,7 +78,7 @@ public class ExamCreationSeleniumTest extends BaseSeleniumTest {
                     Assertions.assertTrue(true);
                 } else {
                     System.out.println("⚠️ Sınav formu doldurma işlemi tamamlanamadı");
-                    Assertions.assertTrue(urlContains("localhost"));
+                    Assertions.assertTrue(driver.getCurrentUrl().contains("localhost"));
                 }
             } else {
                 System.out.println("⚠️ Sınav oluşturma sayfasına erişilemedi");
@@ -109,7 +109,7 @@ public class ExamCreationSeleniumTest extends BaseSeleniumTest {
 
                 Assertions.assertTrue(true);
             } else {
-                Assertions.assertTrue(urlContains("localhost"));
+                Assertions.assertTrue(driver.getCurrentUrl().contains("localhost"));
             }
 
         } catch (Exception e) {
@@ -121,17 +121,17 @@ public class ExamCreationSeleniumTest extends BaseSeleniumTest {
     // Helper metodlar
     private void performTeacherLogin() {
         try {
-            if (isElementPresent("//input[@name='username' or @name='email' or @type='email']")) {
+            if (isElementPresent(By.xpath("//input[@name='username' or @name='email' or @type='email']"))) {
                 WebElement usernameField = driver.findElement(By.xpath("//input[@name='username' or @name='email' or @type='email']"));
                 usernameField.clear();
                 usernameField.sendKeys("ogretmen");
 
-                if (isElementPresent("//input[@name='password' or @type='password']")) {
+                if (isElementPresent(By.xpath("//input[@name='password' or @type='password']"))) {
                     WebElement passwordField = driver.findElement(By.xpath("//input[@name='password' or @type='password']"));
                     passwordField.clear();
                     passwordField.sendKeys("123456");
 
-                    if (isElementPresent("//button[@type='submit' or contains(text(),'Giriş') or contains(text(),'Login')]")) {
+                    if (isElementPresent(By.xpath("//button[@type='submit' or contains(text(),'Giriş') or contains(text(),'Login')]"))) {
                         WebElement loginButton = driver.findElement(By.xpath("//button[@type='submit' or contains(text(),'Giriş') or contains(text(),'Login')]"));
                         loginButton.click();
                         waitForPageLoad();
@@ -155,7 +155,7 @@ public class ExamCreationSeleniumTest extends BaseSeleniumTest {
             };
 
             for (String selector : examCreationSelectors) {
-                if (isElementPresent(selector)) {
+                if (isElementPresent(By.xpath(selector))) {
                     driver.findElement(By.xpath(selector)).click();
                     waitForPageLoad();
                     return true;
@@ -170,11 +170,11 @@ public class ExamCreationSeleniumTest extends BaseSeleniumTest {
 
     private boolean checkExamFormElements() {
         // Sınav formu elementlerini kontrol et
-        return isElementPresent("//input[@name='title' or @placeholder*='başlık' or @placeholder*='title']") ||
-               isElementPresent("//input[@name='name' or @placeholder*='isim' or @placeholder*='name']") ||
-               isElementPresent("//textarea[@name='description' or @placeholder*='açıklama']") ||
-               isElementPresent("//select[@name='duration' or contains(@name,'time')]") ||
-               isElementPresent("//input[@type='datetime-local' or @type='date']");
+        return isElementPresent(By.xpath("//input[@name='title' or @placeholder*='başlık' or @placeholder*='title']")) ||
+               isElementPresent(By.xpath("//input[@name='name' or @placeholder*='isim' or @placeholder*='name']")) ||
+               isElementPresent(By.xpath("//textarea[@name='description' or @placeholder*='açıklama']")) ||
+               isElementPresent(By.xpath("//select[@name='duration' or contains(@name,'time')]")) ||
+               isElementPresent(By.xpath("//input[@type='datetime-local' or @type='date']"));
     }
 
     private boolean fillExamBasicInfo() {
@@ -182,7 +182,7 @@ public class ExamCreationSeleniumTest extends BaseSeleniumTest {
             boolean filled = false;
 
             // Sınav başlığı
-            if (isElementPresent("//input[@name='title' or @placeholder*='başlık' or @placeholder*='title']")) {
+            if (isElementPresent(By.xpath("//input[@name='title' or @placeholder*='başlık' or @placeholder*='title']"))) {
                 WebElement titleField = driver.findElement(By.xpath("//input[@name='title' or @placeholder*='başlık' or @placeholder*='title']"));
                 titleField.clear();
                 titleField.sendKeys("Test Sınavı - Selenium");
@@ -190,7 +190,7 @@ public class ExamCreationSeleniumTest extends BaseSeleniumTest {
             }
 
             // Sınav açıklaması
-            if (isElementPresent("//textarea[@name='description' or @placeholder*='açıklama']")) {
+            if (isElementPresent(By.xpath("//textarea[@name='description' or @placeholder*='açıklama']"))) {
                 WebElement descField = driver.findElement(By.xpath("//textarea[@name='description' or @placeholder*='açıklama']"));
                 descField.clear();
                 descField.sendKeys("Selenium ile oluşturulan test sınavı");
@@ -198,7 +198,7 @@ public class ExamCreationSeleniumTest extends BaseSeleniumTest {
             }
 
             // Süre ayarı
-            if (isElementPresent("//input[@name='duration' or contains(@name,'time')]")) {
+            if (isElementPresent(By.xpath("//input[@name='duration' or contains(@name,'time')]"))) {
                 WebElement durationField = driver.findElement(By.xpath("//input[@name='duration' or contains(@name,'time')]"));
                 durationField.clear();
                 durationField.sendKeys("60");
@@ -222,7 +222,7 @@ public class ExamCreationSeleniumTest extends BaseSeleniumTest {
             };
 
             for (String selector : saveSelectors) {
-                if (isElementPresent(selector)) {
+                if (isElementPresent(By.xpath(selector))) {
                     driver.findElement(By.xpath(selector)).click();
                     waitForPageLoad();
                     return true;
@@ -240,17 +240,17 @@ public class ExamCreationSeleniumTest extends BaseSeleniumTest {
             boolean configured = false;
 
             // Sınav ayarlarını kontrol et
-            if (isElementPresent("//input[@type='checkbox']")) {
+            if (isElementPresent(By.xpath("//input[@type='checkbox']"))) {
                 // Checkbox ayarları var
                 configured = true;
             }
 
-            if (isElementPresent("//select")) {
+            if (isElementPresent(By.xpath("//select"))) {
                 // Dropdown ayarları var
                 configured = true;
             }
 
-            if (isElementPresent("//input[@type='number']")) {
+            if (isElementPresent(By.xpath("//input[@type='number']"))) {
                 // Sayısal ayarlar var
                 configured = true;
             }
@@ -262,8 +262,8 @@ public class ExamCreationSeleniumTest extends BaseSeleniumTest {
     }
 
     private boolean checkTeacherDashboard() {
-        return urlContains("teacher") ||
-               isElementPresent("//*[contains(text(),'Öğretmen') or contains(text(),'Teacher')]") ||
-               isElementPresent("//h1[contains(text(),'Dashboard')]");
+        return driver.getCurrentUrl().contains("teacher") ||
+               isElementPresent(By.xpath("//*[contains(text(),'Öğretmen') or contains(text(),'Teacher')]")) ||
+               isElementPresent(By.xpath("//h1[contains(text(),'Dashboard')]"));
     }
 }
