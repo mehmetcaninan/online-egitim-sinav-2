@@ -63,7 +63,27 @@ pipeline {
                             echo "✅ Docker Compose V2 mevcut"
                         fi
 
+                        # Docker BuildX kurulum kontrolü
+                        echo "Docker BuildX kurulumunu kontrol ediyorum..."
+
+                        if ! docker buildx version >/dev/null 2>&1; then
+                            echo "❌ Docker BuildX bulunamadı, kurulum yapılıyor..."
+
+                            # BuildX kurulum
+                            DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
+                            mkdir -p $DOCKER_CONFIG/cli-plugins
+
+                            # Download latest buildx
+                            curl -SL https://github.com/docker/buildx/releases/latest/download/buildx-v0.17.1.linux-amd64 -o $DOCKER_CONFIG/cli-plugins/docker-buildx
+                            chmod +x $DOCKER_CONFIG/cli-plugins/docker-buildx
+
+                            echo "✅ Docker BuildX kuruldu"
+                        else
+                            echo "✅ Docker BuildX mevcut"
+                        fi
+
                         docker compose version
+                        docker buildx version
 
                         echo "Önceki container'ları temizliyorum..."
 
@@ -216,14 +236,14 @@ pipeline {
             script {
                 echo "🧹 Temizlik işlemleri başlatılıyor..."
 
-                // Test sonuçlarını publish et - JUnit plugin kullan
+                // Test sonuçlarını publish et - Doğru JUnit syntax
                 try {
                     if (fileExists('surefire-reports')) {
-                        junit testResultsPattern: 'surefire-reports/*.xml', allowEmptyResults: true
+                        junit 'surefire-reports/*.xml'
                         echo "📊 Unit test sonuçları Jenkins'e yüklendi"
                     }
                     if (fileExists('failsafe-reports')) {
-                        junit testResultsPattern: 'failsafe-reports/*.xml', allowEmptyResults: true
+                        junit 'failsafe-reports/*.xml'
                         echo "📊 Integration test sonuçları Jenkins'e yüklendi"
                     }
                 } catch (Exception e) {
