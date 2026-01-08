@@ -126,42 +126,64 @@ pipeline {
                         apt-get update -qq || echo "⚠️  apt-get update başarısız"
 
                         # Gerekli paketleri kur
-                        apt-get install -y -qq wget curl unzip xvfb gnupg ca-certificates lsb-release || echo "Bazı paketler kurulamadı"
+                        apt-get install -y -qq wget curl unzip xvfb gnupg ca-certificates lsb-release net-tools || echo "Bazı paketler kurulamadı"
 
-                        # Chrome kurulumu - daha güvenilir yöntem
+                        # Chrome kurulumunu daha agresif şekilde yap
+                        echo "🌐 Chrome kurulumu başlatılıyor..."
+
+                        # Önceki Chrome kaynaklarını temizle
+                        rm -f /etc/apt/sources.list.d/google*.list 2>/dev/null || true
+
+                        # Chrome kurulum metodu 1: Direct download
                         if ! command -v google-chrome >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1; then
-                            echo "🌐 Chrome/Chromium kuruluyor..."
+                            echo "📥 Chrome binary indir ve kur..."
 
-                            # İlk olarak Chromium'u dene (daha kolay kurulum)
-                            if apt-get install -y -qq chromium-browser 2>/dev/null; then
-                                echo "✅ Chromium başarıyla kuruldu"
-                            else
-                                echo "⚠️ Chromium kurulumu başarısız, Google Chrome deneniyor..."
+                            cd /tmp
+                            wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb || echo "Chrome deb indirilemedi"
 
-                                # Chrome kurulumu için güvenli yöntem
-                                mkdir -p /etc/apt/keyrings
-                                wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg 2>/dev/null || echo "Chrome key eklenemedi"
-                                echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list || echo "Chrome repo eklenemedi"
+                            if [ -f "google-chrome-stable_current_amd64.deb" ]; then
+                                # Chrome'un bağımlılıklarını zorla yükle
+                                apt-get install -y -qq --fix-broken ./google-chrome-stable_current_amd64.deb 2>/dev/null || {
+                                    echo "⚠️ Chrome deb kurulumu başarısız, dependency'leri ayrı ayrı kuralım"
+                                    apt-get install -y -qq libasound2 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libc6 libcairo2 libcups2 libdbus-1-3 libdrm2 libexpat1 libgbm1 libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libu2f-udev libvulkan1 libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxkbcommon0 libxrandr2 libxss1 2>/dev/null || true
+                                    dpkg -i ./google-chrome-stable_current_amd64.deb 2>/dev/null || true
+                                    apt-get install -f -y -qq 2>/dev/null || true
+                                }
+                            fi
 
-                                apt-get update -qq 2>/dev/null || echo "Chrome repo güncelleme başarısız"
-                                apt-get install -y -qq google-chrome-stable 2>/dev/null || echo "Chrome kurulumu başarısız"
+                            # Hala yoksa Chromium'u dene
+                            if ! command -v google-chrome >/dev/null 2>&1; then
+                                echo "⚠️ Chrome kurulumu başarısız, Chromium deneniyor..."
+                                apt-get update -qq 2>/dev/null || true
+                                apt-get install -y -qq chromium-browser chromium-chromedriver 2>/dev/null || echo "Chromium kurulumu da başarısız"
                             fi
                         fi
 
-                        # Chrome/Chromium kurulum kontrolü
+                        # Son kontrolü yap
+                        CHROME_BINARY=""
                         if command -v google-chrome >/dev/null 2>&1; then
-                            echo "✅ Google Chrome kullanıma hazır"
-                            google-chrome --version || true
+                            CHROME_BINARY="/usr/bin/google-chrome"
+                            echo "✅ Google Chrome kullanıma hazır: $(google-chrome --version)"
                         elif command -v chromium-browser >/dev/null 2>&1; then
-                            echo "✅ Chromium kullanıma hazır"
-                            chromium-browser --version || true
+                            CHROME_BINARY="/usr/bin/chromium-browser"
+                            echo "✅ Chromium kullanıma hazır: $(chromium-browser --version)"
+                        elif command -v chromium >/dev/null 2>&1; then
+                            CHROME_BINARY="/usr/bin/chromium"
+                            echo "✅ Chromium kullanıma hazır: $(chromium --version)"
+                        fi
+
+                        # Chrome binary'yi environment variable olarak kaydet
+                        if [ ! -z "$CHROME_BINARY" ]; then
+                            echo "CHROME_BINARY_PATH=$CHROME_BINARY" > /tmp/chrome-config
+                            echo "✅ Chrome binary path: $CHROME_BINARY"
                         else
-                            echo "❌ Chrome/Chromium kurulumu başarısız"
+                            echo "❌ Chrome/Chromium kurulumu tamamen başarısız"
+                            echo "SKIP_SELENIUM=true" > /tmp/chrome-config
                         fi
 
                     elif command -v yum >/dev/null 2>&1; then
                         echo "RHEL/CentOS tespit edildi"
-                        yum install -y wget curl unzip xorg-x11-server-Xvfb || echo "Bazı paketler kurulamadı"
+                        yum install -y wget curl unzip xorg-x11-server-Xvfb net-tools || echo "Bazı paketler kurulamadı"
 
                         # Chrome kurulumu
                         if ! command -v google-chrome >/dev/null 2>&1; then
@@ -172,21 +194,31 @@ pipeline {
 
                     else
                         echo "⚠️  Package manager tespit edilemedi, mevcut araçlarla devam ediliyor"
+                        echo "SKIP_SELENIUM=true" > /tmp/chrome-config
                     fi
 
-                    # Virtual display başlat
+                    # Virtual display başlat - daha güçlü
                     if command -v Xvfb >/dev/null 2>&1; then
                         echo "🖥️  Virtual display başlatılıyor..."
                         export DISPLAY=:99
-                        # Önceki Xvfb process'ini temizle
-                        pkill -f "Xvfb :99" 2>/dev/null || true
+                        # Önceki Xvfb process'lerini temizle
+                        pkill -f "Xvfb" 2>/dev/null || true
                         sleep 2
-                        Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+
+                        # Xvfb'yi daha kararlı ayarlarla başlat
+                        Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset > /dev/null 2>&1 &
+                        XVFB_PID=$!
                         sleep 3
-                        echo "✅ Virtual display hazır"
+
+                        # Xvfb'nin çalıştığını kontrol et
+                        if ps -p $XVFB_PID > /dev/null 2>&1; then
+                            echo "✅ Virtual display hazır (PID: $XVFB_PID)"
+                        else
+                            echo "⚠️  Virtual display başlatma sorunu"
+                        fi
                     fi
 
-                    echo "✅ CI ortamı hazır"
+                    echo "✅ CI ortamı hazırlanması tamamlandı"
                 '''
             }
         }
