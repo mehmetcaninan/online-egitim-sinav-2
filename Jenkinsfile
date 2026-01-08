@@ -9,6 +9,9 @@ pipeline {
         timeout(time: 15, unit: 'MINUTES')
         disableConcurrentBuilds()
         buildDiscarder(logRotator(numToKeepStr: '10'))
+        // Stage görünümü için gerekli
+        skipDefaultCheckout(false)
+        timestamps()
     }
 
     environment {
@@ -22,7 +25,7 @@ pipeline {
     }
 
     stages {
-        stage('1 - Checkout & Info') {
+        stage('🚀 Checkout & Info') {
             steps {
                 script {
                     echo "🏠 LOCAL JENKINS PIPELINE"
@@ -42,7 +45,7 @@ pipeline {
             }
         }
 
-        stage('2 - Local Environment Setup') {
+        stage('🔧 Environment Setup') {
             steps {
                 script {
                     echo "🏠 Local ortam hazırlanıyor..."
@@ -155,7 +158,7 @@ EOF
             }
         }
 
-        stage('3 - Build & Start Services') {
+        stage('🏗️ Build & Deploy') {
             steps {
                 script {
                     echo "🏗️ Local Docker Compose ile servisler başlatılıyor..."
@@ -219,7 +222,7 @@ EOF
             }
         }
 
-        stage('4 - Run Tests') {
+        stage('🧪 Run Tests') {
             steps {
                 script {
                     echo "🧪 Local ortamda testler çalıştırılıyor..."
@@ -320,7 +323,7 @@ EOF
             }
         }
 
-        stage('5 - Extract Test Results') {
+        stage('📊 Test Results') {
             steps {
                 script {
                     echo "📊 Test sonuçları toplanıyor..."
