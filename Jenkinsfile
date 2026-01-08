@@ -50,55 +50,102 @@ pipeline {
                     sh '''
                         echo "Local Docker ve Chrome kontrol ediliyor..."
 
-                        # Docker kontrol
-                        if ! docker --version >/dev/null 2>&1; then
-                            echo "❌ Docker bulunamadı! Lütfen Docker Desktop'ı kurun."
+                        # macOS'ta Docker Desktop PATH'lerini ekle
+                        export PATH="/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
+
+                        # Docker Desktop'ın çalışıp çalışmadığını kontrol et
+                        if ! pgrep -f "Docker Desktop" >/dev/null 2>&1; then
+                            echo "⚠️ Docker Desktop çalışmıyor, başlatılmaya çalışılıyor..."
+                            open -a "Docker Desktop" || echo "Docker Desktop başlatılamadı"
+                            sleep 10
+                        fi
+
+                        # Docker komutunu bulma
+                        DOCKER_PATH=""
+                        for path in "/usr/local/bin/docker" "/opt/homebrew/bin/docker" "/Applications/Docker.app/Contents/Resources/bin/docker"; do
+                            if [ -f "$path" ]; then
+                                DOCKER_PATH="$path"
+                                break
+                            fi
+                        done
+
+                        if [ -z "$DOCKER_PATH" ]; then
+                            echo "❌ Docker bulunamadı! Kontrol edilen konumlar:"
+                            echo "   - /usr/local/bin/docker"
+                            echo "   - /opt/homebrew/bin/docker"
+                            echo "   - /Applications/Docker.app/Contents/Resources/bin/docker"
+                            echo "🔗 Lütfen Docker Desktop'ı kurun: https://www.docker.com/products/docker-desktop"
                             exit 1
                         fi
-                        echo "✅ Docker mevcut: $(docker --version)"
+
+                        echo "✅ Docker bulundu: $DOCKER_PATH"
+                        "$DOCKER_PATH" --version || {
+                            echo "❌ Docker çalışmıyor, Docker Desktop'ı başlatın"
+                            exit 1
+                        }
 
                         # Docker Compose kontrol
-                        if ! docker compose version >/dev/null 2>&1; then
+                        if ! "$DOCKER_PATH" compose version >/dev/null 2>&1; then
                             echo "❌ Docker Compose bulunamadı!"
                             exit 1
                         fi
-                        echo "✅ Docker Compose mevcut: $(docker compose version)"
+                        echo "✅ Docker Compose mevcut: $("$DOCKER_PATH" compose version)"
 
                         # Chrome Browser kontrol (macOS)
-                        if [[ "$OSTYPE" == "darwin"* ]]; then
-                            if [ ! -f "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ]; then
-                                echo "⚠️ Chrome browser bulunamadı, Selenium testleri başarısız olabilir"
-                            else
-                                echo "✅ Chrome browser mevcut"
-                            fi
+                        if [ ! -f "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ]; then
+                            echo "⚠️ Chrome browser bulunamadı, Selenium testleri başarısız olabilir"
+                        else
+                            echo "✅ Chrome browser mevcut"
                         fi
 
                         # ChromeDriver kontrol ve kurulum
-                        if ! command -v chromedriver >/dev/null 2>&1; then
-                            echo "⚠️ ChromeDriver bulunamadı, kurulum yapılıyor..."
-
-                            # macOS için ChromeDriver kurulumu
-                            if [[ "$OSTYPE" == "darwin"* ]]; then
-                                if command -v brew >/dev/null 2>&1; then
-                                    brew install chromedriver || echo "Brew ile ChromeDriver kurulumu başarısız"
-                                else
-                                    echo "❌ Homebrew bulunamadı, ChromeDriver manuel kurulmalı"
-                                fi
+                        CHROMEDRIVER_PATH=""
+                        for path in "/usr/local/bin/chromedriver" "/opt/homebrew/bin/chromedriver"; do
+                            if [ -f "$path" ]; then
+                                CHROMEDRIVER_PATH="$path"
+                                break
                             fi
+                        done
+
+                        if [ -z "$CHROMEDRIVER_PATH" ]; then
+                            echo "⚠️ ChromeDriver bulunamadı, kurulum yapılmaya çalışılıyor..."
+
+                            # Homebrew ile ChromeDriver kurulumu dene
+                            if command -v brew >/dev/null 2>&1; then
+                                brew install chromedriver || echo "Brew ile ChromeDriver kurulumu başarısız"
+                                # Tekrar kontrol et
+                                for path in "/usr/local/bin/chromedriver" "/opt/homebrew/bin/chromedriver"; do
+                                    if [ -f "$path" ]; then
+                                        CHROMEDRIVER_PATH="$path"
+                                        break
+                                    fi
+                                done
+                            else
+                                echo "❌ Homebrew bulunamadı, ChromeDriver manuel kurulmalı"
+                            fi
+                        fi
+
+                        if [ -n "$CHROMEDRIVER_PATH" ]; then
+                            echo "✅ ChromeDriver mevcut: $CHROMEDRIVER_PATH"
+                            "$CHROMEDRIVER_PATH" --version || echo "ChromeDriver version alınamadı"
                         else
-                            echo "✅ ChromeDriver mevcut: $(chromedriver --version)"
+                            echo "⚠️ ChromeDriver bulunamadı"
                         fi
 
                         echo "Önceki container'ları temizliyorum..."
 
-                        # Local ortamda sadece bizim container'ları temizle
-                        docker ps -a | grep "local-jenkins" | awk '{print $1}' | xargs -r docker rm -f || true
+                        # Docker PATH'ini kullanarak temizlik
+                        "$DOCKER_PATH" ps -a | grep "local-jenkins" | awk '{print $1}' | xargs -r "$DOCKER_PATH" rm -f || true
 
                         # Dangling image'ları temizle
-                        docker image prune -f || true
+                        "$DOCKER_PATH" image prune -f || true
 
                         # Network temizliği
-                        docker network prune -f || true
+                        "$DOCKER_PATH" network prune -f || true
+
+                        # Environment variable'ları sonraki stage'ler için export et
+                        echo "DOCKER_PATH=$DOCKER_PATH" > docker_env.txt
+                        echo "CHROMEDRIVER_PATH=$CHROMEDRIVER_PATH" >> docker_env.txt
                     '''
 
                     if (!fileExists('docker-compose.yml')) {
@@ -118,11 +165,27 @@ pipeline {
                     sh '''
                         echo "🔧 Local Docker Compose build ve start..."
 
+                        # Docker PATH'ini yükle
+                        if [ -f "docker_env.txt" ]; then
+                            . ./docker_env.txt
+                        else
+                            # Fallback: Docker PATH'ini tekrar bul
+                            export PATH="/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
+                            for path in "/usr/local/bin/docker" "/opt/homebrew/bin/docker" "/Applications/Docker.app/Contents/Resources/bin/docker"; do
+                                if [ -f "$path" ]; then
+                                    DOCKER_PATH="$path"
+                                    break
+                                fi
+                            done
+                        fi
+
+                        echo "Docker PATH: $DOCKER_PATH"
+
                         # Backend ve Frontend servislerini build et
-                        docker compose -p ${COMPOSE_PROJECT_NAME} build app frontend
+                        "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} build app frontend
 
                         # Backend ve Frontend servislerini başlat
-                        docker compose -p ${COMPOSE_PROJECT_NAME} up -d app frontend
+                        "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} up -d app frontend
 
                         # Servislerin başlaması için bekle
                         echo "Backend ve Frontend başlatıldı, hazır olması bekleniyor..."
@@ -130,21 +193,21 @@ pipeline {
 
                         # Container durumlarını kontrol et
                         echo "📋 Container durumları:"
-                        docker compose -p ${COMPOSE_PROJECT_NAME} ps
+                        "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} ps
 
                         # App container kontrolü
-                        APP_CONTAINER=$(docker compose -p ${COMPOSE_PROJECT_NAME} ps -q app)
+                        APP_CONTAINER=$("$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} ps -q app)
                         if [ -z "$APP_CONTAINER" ]; then
                             echo "❌ Backend container bulunamadı!"
-                            docker compose -p ${COMPOSE_PROJECT_NAME} logs app
+                            "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs app
                             exit 1
                         fi
 
                         # Frontend container kontrolü
-                        FRONTEND_CONTAINER=$(docker compose -p ${COMPOSE_PROJECT_NAME} ps -q frontend)
+                        FRONTEND_CONTAINER=$("$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} ps -q frontend)
                         if [ -z "$FRONTEND_CONTAINER" ]; then
                             echo "❌ Frontend container bulunamadı!"
-                            docker compose -p ${COMPOSE_PROJECT_NAME} logs frontend
+                            "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs frontend
                             exit 1
                         fi
 
@@ -164,8 +227,22 @@ pipeline {
                     echo "🧪 Local ortamda testler çalıştırılıyor..."
 
                     sh '''
-                        APP_CONTAINER=$(docker compose -p ${COMPOSE_PROJECT_NAME} ps -q app)
-                        FRONTEND_CONTAINER=$(docker compose -p ${COMPOSE_PROJECT_NAME} ps -q frontend)
+                        # Docker PATH'ini yükle
+                        if [ -f "docker_env.txt" ]; then
+                            . ./docker_env.txt
+                        else
+                            # Fallback: Docker PATH'ini tekrar bul
+                            export PATH="/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
+                            for path in "/usr/local/bin/docker" "/opt/homebrew/bin/docker" "/Applications/Docker.app/Contents/Resources/bin/docker"; do
+                                if [ -f "$path" ]; then
+                                    DOCKER_PATH="$path"
+                                    break
+                                fi
+                            done
+                        fi
+
+                        APP_CONTAINER=$("$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} ps -q app)
+                        FRONTEND_CONTAINER=$("$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} ps -q frontend)
 
                         echo "Backend Container: $APP_CONTAINER"
                         echo "Frontend Container: $FRONTEND_CONTAINER"
@@ -173,7 +250,7 @@ pipeline {
                         # Backend hazır olana kadar bekle
                         echo "📦 Backend hazırlığı kontrol ediliyor..."
                         for i in {1..20}; do
-                            if docker exec "$APP_CONTAINER" curl -f http://localhost:8081/actuator/health >/dev/null 2>&1; then
+                            if "$DOCKER_PATH" exec "$APP_CONTAINER" curl -f http://localhost:8081/actuator/health >/dev/null 2>&1; then
                                 echo "✅ Backend hazır (${i}. deneme)"
                                 break
                             fi
@@ -193,50 +270,50 @@ pipeline {
                         done
 
                         # Son kontroller
-                        if ! docker exec "$APP_CONTAINER" curl -f http://localhost:8081/actuator/health >/dev/null 2>&1; then
+                        if ! "$DOCKER_PATH" exec "$APP_CONTAINER" curl -f http://localhost:8081/actuator/health >/dev/null 2>&1; then
                             echo "❌ Backend hazır değil! Logları kontrol ediliyor..."
-                            docker compose -p ${COMPOSE_PROJECT_NAME} logs app
+                            "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs app
                             exit 1
                         fi
 
                         if ! curl -f http://localhost:5173 >/dev/null 2>&1; then
                             echo "❌ Frontend hazır değil! Logları kontrol ediliyor..."
-                            docker compose -p ${COMPOSE_PROJECT_NAME} logs frontend
+                            "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs frontend
                             exit 1
                         fi
 
                         # Unit testleri çalıştır - HATA DURUMUNDA PIPELINE DURDUR
                         echo "🔬 Unit testler çalıştırılıyor..."
-                        if ! docker exec "$APP_CONTAINER" ./mvnw test -DskipSelenium=true -Dmaven.test.failure.ignore=false; then
+                        if ! "$DOCKER_PATH" exec "$APP_CONTAINER" ./mvnw test -DskipSelenium=true -Dmaven.test.failure.ignore=false; then
                             echo "❌ Unit testler BAŞARISIZ! Pipeline durduruluyor."
-                            docker compose -p ${COMPOSE_PROJECT_NAME} logs app
+                            "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs app
                             exit 1
                         fi
                         echo "✅ Unit testler başarılı"
 
                         # Integration testleri çalıştır - HATA DURUMUNDA PIPELINE DURDUR
                         echo "🔗 Integration testler çalıştırılıyor..."
-                        if ! docker exec "$APP_CONTAINER" ./mvnw failsafe:integration-test failsafe:verify -DskipSelenium=true -Dmaven.test.failure.ignore=false; then
+                        if ! "$DOCKER_PATH" exec "$APP_CONTAINER" ./mvnw failsafe:integration-test failsafe:verify -DskipSelenium=true -Dmaven.test.failure.ignore=false; then
                             echo "❌ Integration testler BAŞARISIZ! Pipeline durduruluyor."
-                            docker compose -p ${COMPOSE_PROJECT_NAME} logs app
+                            "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs app
                             exit 1
                         fi
                         echo "✅ Integration testler başarılı"
 
                         # Selenium testleri - Local Chrome ile Frontend'e karşı
                         echo "🌐 Selenium testler çalıştırılıyor (Frontend: http://localhost:5173)..."
-                        if command -v chromedriver >/dev/null 2>&1; then
+                        if [ -n "$CHROMEDRIVER_PATH" ] && [ -f "$CHROMEDRIVER_PATH" ]; then
                             # Local'de Selenium testleri çalıştır - Frontend URL'ine karşı
                             ./mvnw test -Dtest="*SeleniumTest" \\
-                                -Dwebdriver.chrome.driver=$(which chromedriver) \\
+                                -Dwebdriver.chrome.driver="$CHROMEDRIVER_PATH" \\
                                 -Dapp.baseUrl=http://localhost:5173 \\
                                 -Dmaven.test.failure.ignore=false \\
                                 -Dselenium.headless=true || {
                                 echo "❌ Selenium testler BAŞARISIZ! Pipeline durduruluyor."
                                 echo "Frontend Logs:"
-                                docker compose -p ${COMPOSE_PROJECT_NAME} logs frontend
+                                "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs frontend
                                 echo "Backend Logs:"
-                                docker compose -p ${COMPOSE_PROJECT_NAME} logs app
+                                "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} logs app
                                 exit 1
                             }
                             echo "✅ Selenium testler başarılı (Frontend: http://localhost:5173)"
@@ -256,12 +333,26 @@ pipeline {
                     echo "📊 Test sonuçları toplanıyor..."
 
                     sh '''
-                        APP_CONTAINER=$(docker compose -p ${COMPOSE_PROJECT_NAME} ps -q app)
+                        # Docker PATH'ini yükle
+                        if [ -f "docker_env.txt" ]; then
+                            . ./docker_env.txt
+                        else
+                            # Fallback: Docker PATH'ini tekrar bul
+                            export PATH="/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
+                            for path in "/usr/local/bin/docker" "/opt/homebrew/bin/docker" "/Applications/Docker.app/Contents/Resources/bin/docker"; do
+                                if [ -f "$path" ]; then
+                                    DOCKER_PATH="$path"
+                                    break
+                                fi
+                            done
+                        fi
+
+                        APP_CONTAINER=$("$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} ps -q app)
 
                         # Container'dan test sonuçlarını kopyala
                         echo "Docker container'dan test sonuçları kopyalanıyor..."
-                        docker cp "$APP_CONTAINER:/app/target/surefire-reports" ./surefire-reports || echo "⚠️ Container'dan surefire reports kopyalanamadı"
-                        docker cp "$APP_CONTAINER:/app/target/failsafe-reports" ./failsafe-reports || echo "⚠️ Container'dan failsafe reports kopyalanamadı"
+                        "$DOCKER_PATH" cp "$APP_CONTAINER:/app/target/surefire-reports" ./surefire-reports || echo "⚠️ Container'dan surefire reports kopyalanamadı"
+                        "$DOCKER_PATH" cp "$APP_CONTAINER:/app/target/failsafe-reports" ./failsafe-reports || echo "⚠️ Container'dan failsafe reports kopyalanamadı"
 
                         # Local'den de test sonuçları al (Selenium için)
                         echo "Local test sonuçları kontrol ediliyor..."
@@ -273,7 +364,7 @@ pipeline {
                         fi
 
                         # Screenshots kopyala
-                        docker cp "$APP_CONTAINER:/app/screenshots" ./screenshots || echo "⚠️ Screenshots bulunamadı"
+                        "$DOCKER_PATH" cp "$APP_CONTAINER:/app/screenshots" ./screenshots || echo "⚠️ Screenshots bulunamadı"
                         if [ -d "./screenshots" ]; then
                             cp -r ./screenshots/* ./screenshots/ 2>/dev/null || true
                         fi
@@ -323,10 +414,29 @@ pipeline {
                 // Local Docker temizliği
                 sh '''
                     echo "🐳 Local Docker container'ları temizleniyor..."
-                    docker compose -p ${COMPOSE_PROJECT_NAME} down --volumes --remove-orphans || true
 
-                    # Local ortamda sadece bu build'e ait volume'ları temizle
-                    docker volume ls -q | grep "${COMPOSE_PROJECT_NAME}" | xargs -r docker volume rm || true
+                    # Docker PATH'ini yükle
+                    if [ -f "docker_env.txt" ]; then
+                        . ./docker_env.txt
+                    else
+                        # Fallback: Docker PATH'ini tekrar bul
+                        export PATH="/usr/local/bin:/opt/homebrew/bin:/Applications/Docker.app/Contents/Resources/bin:$PATH"
+                        for path in "/usr/local/bin/docker" "/opt/homebrew/bin/docker" "/Applications/Docker.app/Contents/Resources/bin/docker"; do
+                            if [ -f "$path" ]; then
+                                DOCKER_PATH="$path"
+                                break
+                            fi
+                        done
+                    fi
+
+                    if [ -n "$DOCKER_PATH" ]; then
+                        "$DOCKER_PATH" compose -p ${COMPOSE_PROJECT_NAME} down --volumes --remove-orphans || true
+
+                        # Local ortamda sadece bu build'e ait volume'ları temizle
+                        "$DOCKER_PATH" volume ls -q | grep "${COMPOSE_PROJECT_NAME}" | xargs -r "$DOCKER_PATH" volume rm || true
+                    else
+                        echo "⚠️ Docker bulunamadı, manuel temizlik gerekebilir"
+                    fi
 
                     echo "✅ Local Docker temizliği tamamlandı"
                 '''
