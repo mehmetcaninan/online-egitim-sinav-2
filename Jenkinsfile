@@ -145,23 +145,7 @@ EOF
                         "$DOCKER_PATH" network prune -f || true
 
                         # Environment variable'ları sonraki stage'ler için export et
-                        # Otomatik olarak kullanılabilir bir host portu bul (macOS'da python3 kullan)
-                        HOST_PORT="8081"
-                        if command -v python3 >/dev/null 2>&1; then
-                            FREE_PORT=$(python3 - <<'PY'
-import socket
-s=socket.socket()
-s.bind(('',0))
-print(s.getsockname()[1])
-s.close()
-PY
-) || FREE_PORT="8081"
-                            # Eğer FREE_PORT boşsa fallback
-                        fi
-                        HOST_PORT=${FREE_PORT:-8081}
-
-                        echo "HOST_APP_PORT=$HOST_PORT" > docker_env.txt
-                        echo "DOCKER_PATH=$DOCKER_PATH" >> docker_env.txt
+                        echo "DOCKER_PATH=$DOCKER_PATH" > docker_env.txt
                         echo "CHROMEDRIVER_AVAILABLE=true" >> docker_env.txt
                     '''
 
@@ -231,7 +215,7 @@ PY
                         echo "✅ Backend ve Frontend başarıyla çalışıyor"
                         echo "Backend Container ID: $APP_CONTAINER"
                         echo "Frontend Container ID: $FRONTEND_CONTAINER"
-                        echo "Backend URL: http://localhost:${HOST_APP_PORT:-8081}"
+                        echo "Backend URL: http://localhost:8081"
                         echo "Frontend URL: http://localhost:5173"
                     '''
                 }
@@ -457,8 +441,8 @@ PY
 
         success {
             echo "🎉 LOCAL PIPELINE BAŞARILI! Tüm testler geçti."
-            echo "🌐 Uygulama: http://localhost:${HOST_APP_PORT?:8081}"
-            echo "📄 H2 Console: http://localhost:8082"
+            echo "🌐 Uygulama: http://localhost:8081"
+            echo "🗄️ H2 Console: http://localhost:8082"
         }
 
         failure {

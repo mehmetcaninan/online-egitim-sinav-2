@@ -8,9 +8,7 @@ services:
       dockerfile: Dockerfile
     container_name: "${COMPOSE_PROJECT_NAME:-online-egitim}-app"
     ports:
-      # Host tarafında çakışmayı önlemek için portu ortam değişkeni ile yapılandırın.
-      # Varsayılan olarak 8081 kullanılır, örn: HOST_APP_PORT=9081 docker compose up
-      - "${HOST_APP_PORT:-8081}:8081"
+      - "8081:8081"
     environment:
       - SPRING_PROFILES_ACTIVE=local
       - SPRING_DATASOURCE_URL=jdbc:h2:file:/app/data/online_egitim_db
@@ -46,8 +44,7 @@ services:
       - "5173:5173"  # Vite default port
     environment:
       - NODE_ENV=development
-      # Frontend ve backend aynı Docker network'ünde olduğu için doğrudan servis ismi ile erişim kullanın
-      - VITE_API_BASE_URL=http://app:8081
+      - VITE_API_BASE_URL=http://localhost:8081
     volumes:
       - ./frontend:/app
       - /app/node_modules
