@@ -89,85 +89,124 @@ pipeline {
                     echo "🏗️ Docker servisleri build ediliyor ve başlatılıyor..."
 
                     sh '''
-                        # Docker Compose komutunu belirle
-                        if command -v docker-compose &> /dev/null; then
+                        # Docker Compose varlığını kontrol et ve çalıştır
+                        echo "🔍 Docker Compose kontrol ediliyor..."
+
+                        # Test: docker-compose komutu çalışıyor mu?
+                        if docker-compose --version &> /dev/null; then
                             COMPOSE_CMD="docker-compose"
+                            echo "✅ docker-compose komutu kullanılacak"
                         elif docker compose version &> /dev/null; then
                             COMPOSE_CMD="docker compose"
+                            echo "✅ docker compose komutu kullanılacak"
                         else
-                            echo "❌ Docker Compose bulunamadı!"
-                            echo "Manuel Docker komutları ile devam ediliyor..."
-
-                            # Manuel Docker network oluştur
-                            docker network create ${COMPOSE_PROJECT_NAME}_app-network || true
-
-                            # Database container'ı başlat
-                            docker run -d \\
-                                --name ${COMPOSE_PROJECT_NAME}-db-1 \\
-                                --network ${COMPOSE_PROJECT_NAME}_app-network \\
-                                -e POSTGRES_DB=online_egitim_db \\
-                                -e POSTGRES_USER=postgres \\
-                                -e POSTGRES_PASSWORD=postgres \\
-                                -p 5432:5432 \\
-                                postgres:15
-
-                            echo "Database başlatıldı, bekleniyor..."
-                            sleep 15
-
-                            # Selenium Hub başlat
-                            docker run -d \\
-                                --name ${COMPOSE_PROJECT_NAME}-selenium-hub \\
-                                --network ${COMPOSE_PROJECT_NAME}_app-network \\
-                                -p 4444:4444 \\
-                                selenium/hub:4.26.0
-
-                            # Selenium Chrome başlat
-                            docker run -d \\
-                                --name ${COMPOSE_PROJECT_NAME}-selenium-chrome \\
-                                --network ${COMPOSE_PROJECT_NAME}_app-network \\
-                                -e HUB_HOST=${COMPOSE_PROJECT_NAME}-selenium-hub \\
-                                -e HUB_PORT=4444 \\
-                                --shm-size=2gb \\
-                                selenium/node-chromium:4.26.0
-
-                            echo "Selenium servisleri başlatıldı"
-                            sleep 5
-
-                            # App build et ve başlat
-                            docker build -t ${COMPOSE_PROJECT_NAME}-app .
-
-                            docker run -d \\
-                                --name ${COMPOSE_PROJECT_NAME}-app-1 \\
-                                --network ${COMPOSE_PROJECT_NAME}_app-network \\
-                                -e SPRING_PROFILES_ACTIVE=docker \\
-                                -e SPRING_DATASOURCE_URL=jdbc:postgresql://${COMPOSE_PROJECT_NAME}-db-1:5432/online_egitim_db \\
-                                -e SPRING_DATASOURCE_USERNAME=postgres \\
-                                -e SPRING_DATASOURCE_PASSWORD=postgres \\
-                                -p 8082:8081 \\
-                                ${COMPOSE_PROJECT_NAME}-app
-
-                            echo "Uygulama başlatıldı"
-                            sleep 15
-                            exit 0
+                            COMPOSE_CMD=""
+                            echo "⚠️ Docker Compose bulunamadı - Manuel Docker komutları kullanılacak"
                         fi
 
-                        # Docker Compose mevcut ise normal flow
-                        echo "Docker Compose komutu: $COMPOSE_CMD"
+                        # Docker Compose ile dene
+                        if [ -n "$COMPOSE_CMD" ]; then
+                            echo "📦 Docker Compose ile başlatma deneniyor: $COMPOSE_CMD"
 
-                        # Database'i önce başlat
-                        $COMPOSE_CMD -p ${COMPOSE_PROJECT_NAME} up -d db
-                        echo "Database başlatıldı, bekleniyor..."
-                        sleep 10
+                            if $COMPOSE_CMD -p ${COMPOSE_PROJECT_NAME} up -d db; then
+                                echo "✅ Database başarıyla başlatıldı"
+                                sleep 10
 
-                        # Selenium Hub'ı başlat
-                        $COMPOSE_CMD -p ${COMPOSE_PROJECT_NAME} up -d selenium-hub selenium-chrome
+                                if $COMPOSE_CMD -p ${COMPOSE_PROJECT_NAME} up -d selenium-hub selenium-chrome; then
+                                    echo "✅ Selenium servisleri başarıyla başlatıldı"
+                                    sleep 5
+
+                                    if $COMPOSE_CMD -p ${COMPOSE_PROJECT_NAME} up -d --build app; then
+                                        echo "✅ Uygulama başarıyla başlatıldı"
+                                        sleep 10
+                                        exit 0
+                                    else
+                                        echo "❌ App başlatılamadı, manuel mod'a geçiliyor..."
+                                    fi
+                                else
+                                    echo "❌ Selenium başlatılamadı, manuel mod'a geçiliyor..."
+                                fi
+                            else
+                                echo "❌ Database başlatılamadı, manuel mod'a geçiliyor..."
+                            fi
+
+                            # Başarısız olan container'ları temizle
+                            $COMPOSE_CMD -p ${COMPOSE_PROJECT_NAME} down --remove-orphans || true
+                        fi
+
+                        # Manuel Docker komutları
+                        echo "🔧 Manuel Docker komutları ile başlatılıyor..."
+
+                        # Network oluştur
+                        docker network create ${COMPOSE_PROJECT_NAME}_app-network || true
+
+                        # Database container'ı başlat
+                        echo "🗄️ PostgreSQL başlatılıyor..."
+                        docker run -d \\
+                            --name ${COMPOSE_PROJECT_NAME}-db-1 \\
+                            --network ${COMPOSE_PROJECT_NAME}_app-network \\
+                            -e POSTGRES_DB=online_egitim_db \\
+                            -e POSTGRES_USER=postgres \\
+                            -e POSTGRES_PASSWORD=postgres \\
+                            -p 5432:5432 \\
+                            --platform linux/arm64 \\
+                            postgres:15
+
+                        echo "Database başlatıldı, hazır olması bekleniyor..."
+                        sleep 15
+
+                        # Database hazır mı kontrol et
+                        timeout 60 bash -c 'until docker exec ${COMPOSE_PROJECT_NAME}-db-1 pg_isready -U postgres; do echo "Database bekleniyor..."; sleep 2; done'
+
+                        # Selenium Hub başlat
+                        echo "🧪 Selenium Hub başlatılıyor..."
+                        docker run -d \\
+                            --name ${COMPOSE_PROJECT_NAME}-selenium-hub \\
+                            --network ${COMPOSE_PROJECT_NAME}_app-network \\
+                            -p 4444:4444 \\
+                            -e SE_HUB_HOST=0.0.0.0 \\
+                            -e SE_HUB_PORT=4444 \\
+                            --platform linux/arm64 \\
+                            selenium/hub:4.26.0
+
+                        # Selenium Chrome başlat
+                        echo "🌐 Selenium Chrome başlatılıyor..."
+                        docker run -d \\
+                            --name ${COMPOSE_PROJECT_NAME}-selenium-chrome \\
+                            --network ${COMPOSE_PROJECT_NAME}_app-network \\
+                            -e HUB_HOST=${COMPOSE_PROJECT_NAME}-selenium-hub \\
+                            -e HUB_PORT=4444 \\
+                            -e SE_EVENT_BUS_HOST=${COMPOSE_PROJECT_NAME}-selenium-hub \\
+                            -e SE_EVENT_BUS_PUBLISH_PORT=4442 \\
+                            -e SE_EVENT_BUS_SUBSCRIBE_PORT=4443 \\
+                            --shm-size=2gb \\
+                            --platform linux/arm64 \\
+                            selenium/node-chromium:4.26.0
+
                         echo "Selenium servisleri başlatıldı"
-                        sleep 5
-
-                        # Ana uygulamayı build et ve başlat
-                        $COMPOSE_CMD -p ${COMPOSE_PROJECT_NAME} up -d --build app
-                        echo "Uygulama başlatıldı"
                         sleep 10
+
+                        # App build et
+                        echo "🏗️ Uygulama build ediliyor..."
+                        docker build --platform linux/arm64 -t ${COMPOSE_PROJECT_NAME}-app .
+
+                        # App başlat
+                        echo "🚀 Uygulama başlatılıyor..."
+                        docker run -d \\
+                            --name ${COMPOSE_PROJECT_NAME}-app-1 \\
+                            --network ${COMPOSE_PROJECT_NAME}_app-network \\
+                            -e SPRING_PROFILES_ACTIVE=docker \\
+                            -e SPRING_DATASOURCE_URL=jdbc:postgresql://${COMPOSE_PROJECT_NAME}-db-1:5432/online_egitim_db \\
+                            -e SPRING_DATASOURCE_USERNAME=postgres \\
+                            -e SPRING_DATASOURCE_PASSWORD=postgres \\
+                            -p 8082:8081 \\
+                            --platform linux/arm64 \\
+                            ${COMPOSE_PROJECT_NAME}-app
+
+                        echo "Uygulama başlatıldı, hazır olması bekleniyor..."
+                        sleep 20
+
+                        echo "✅ Tüm servisler manuel olarak başlatıldı"
                     '''
 
                     echo "✅ Tüm servisler çalışıyor"
