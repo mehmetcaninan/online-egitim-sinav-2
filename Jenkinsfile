@@ -122,23 +122,53 @@ pipeline {
                         echo "Ubuntu/Debian tespit edildi"
                         export DEBIAN_FRONTEND=noninteractive
 
-                        # Gerekli paketleri kur
-                        apt-get update -y || echo "apt-get update başarısız oldu"
-                        apt-get install -y wget curl unzip xvfb || echo "Bazı paketler kurulamadı"
+                        # Sistem güncellemesi
+                        apt-get update -qq || echo "⚠️  apt-get update başarısız"
 
-                        # Chrome kuruluşu
-                        wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - || echo "Chrome key eklenemedi"
-                        echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google.list || echo "Chrome repo eklenemedi"
-                        apt-get update -y || echo "Chrome repo update başarısız"
-                        apt-get install -y google-chrome-stable || echo "Chrome kurulumu başarısız"
+                        # Gerekli paketleri kur
+                        apt-get install -y -qq wget curl unzip xvfb gnupg ca-certificates lsb-release || echo "Bazı paketler kurulamadı"
+
+                        # Chrome kurulumu - daha güvenilir yöntem
+                        if ! command -v google-chrome >/dev/null 2>&1 && ! command -v chromium-browser >/dev/null 2>&1; then
+                            echo "🌐 Chrome/Chromium kuruluyor..."
+
+                            # İlk olarak Chromium'u dene (daha kolay kurulum)
+                            if apt-get install -y -qq chromium-browser 2>/dev/null; then
+                                echo "✅ Chromium başarıyla kuruldu"
+                            else
+                                echo "⚠️ Chromium kurulumu başarısız, Google Chrome deneniyor..."
+
+                                # Chrome kurulumu için güvenli yöntem
+                                mkdir -p /etc/apt/keyrings
+                                wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg 2>/dev/null || echo "Chrome key eklenemedi"
+                                echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list || echo "Chrome repo eklenemedi"
+
+                                apt-get update -qq 2>/dev/null || echo "Chrome repo güncelleme başarısız"
+                                apt-get install -y -qq google-chrome-stable 2>/dev/null || echo "Chrome kurulumu başarısız"
+                            fi
+                        fi
+
+                        # Chrome/Chromium kurulum kontrolü
+                        if command -v google-chrome >/dev/null 2>&1; then
+                            echo "✅ Google Chrome kullanıma hazır"
+                            google-chrome --version || true
+                        elif command -v chromium-browser >/dev/null 2>&1; then
+                            echo "✅ Chromium kullanıma hazır"
+                            chromium-browser --version || true
+                        else
+                            echo "❌ Chrome/Chromium kurulumu başarısız"
+                        fi
 
                     elif command -v yum >/dev/null 2>&1; then
                         echo "RHEL/CentOS tespit edildi"
                         yum install -y wget curl unzip xorg-x11-server-Xvfb || echo "Bazı paketler kurulamadı"
 
-                        # Chrome kuruluşu
-                        wget -O /tmp/google-chrome.rpm https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm || echo "Chrome indirilemedi"
-                        yum localinstall -y /tmp/google-chrome.rpm || echo "Chrome kurulumu başarısız"
+                        # Chrome kurulumu
+                        if ! command -v google-chrome >/dev/null 2>&1; then
+                            echo "🌐 Google Chrome kuruluyor..."
+                            wget -O /tmp/google-chrome.rpm https://dl.google.com/linux/direct/google-chrome-stable_current_x86_64.rpm 2>/dev/null || echo "Chrome indirilemedi"
+                            yum localinstall -y /tmp/google-chrome.rpm || echo "Chrome kurulumu başarısız"
+                        fi
 
                     else
                         echo "⚠️  Package manager tespit edilemedi, mevcut araçlarla devam ediliyor"
@@ -147,8 +177,13 @@ pipeline {
                     # Virtual display başlat
                     if command -v Xvfb >/dev/null 2>&1; then
                         echo "🖥️  Virtual display başlatılıyor..."
-                        Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+                        export DISPLAY=:99
+                        # Önceki Xvfb process'ini temizle
+                        pkill -f "Xvfb :99" 2>/dev/null || true
                         sleep 2
+                        Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
+                        sleep 3
+                        echo "✅ Virtual display hazır"
                     fi
 
                     echo "✅ CI ortamı hazır"
