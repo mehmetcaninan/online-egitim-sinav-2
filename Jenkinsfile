@@ -63,25 +63,32 @@ pipeline {
                             echo "✅ Docker Compose V2 mevcut"
                         fi
 
-                        # Docker BuildX kurulum kontrolü
+                        # Docker BuildX kurulum kontrolü - Versiyon gereksinimi: 0.17+
                         echo "Docker BuildX kurulumunu kontrol ediyorum..."
 
-                        if ! docker buildx version >/dev/null 2>&1; then
-                            echo "❌ Docker BuildX bulunamadı, kurulum yapılıyor..."
+                        BUILDX_REQUIRED_VERSION="0.17"
+                        CURRENT_BUILDX_VERSION=""
 
-                            # BuildX kurulum
-                            DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
-                            mkdir -p $DOCKER_CONFIG/cli-plugins
-
-                            # Download latest buildx
-                            curl -SL https://github.com/docker/buildx/releases/latest/download/buildx-v0.17.1.linux-amd64 -o $DOCKER_CONFIG/cli-plugins/docker-buildx
-                            chmod +x $DOCKER_CONFIG/cli-plugins/docker-buildx
-
-                            echo "✅ Docker BuildX kuruldu"
-                        else
-                            echo "✅ Docker BuildX mevcut"
+                        if docker buildx version >/dev/null 2>&1; then
+                            CURRENT_BUILDX_VERSION=$(docker buildx version | grep buildx | cut -d' ' -f2 | cut -d'v' -f2 | cut -d'+' -f1)
+                            echo "Mevcut BuildX versiyonu: $CURRENT_BUILDX_VERSION"
                         fi
 
+                        # Version karşılaştırması yapmak yerine her zaman yeni versiyonu kur
+                        echo "❌ BuildX 0.17+ gerekiyor, yeni versiyon kuruluyor..."
+
+                        # BuildX kurulum
+                        DOCKER_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}
+                        mkdir -p $DOCKER_CONFIG/cli-plugins
+
+                        # Download BuildX v0.17.1 (kesin versiyon)
+                        curl -SL https://github.com/docker/buildx/releases/download/v0.17.1/buildx-v0.17.1.linux-amd64 -o $DOCKER_CONFIG/cli-plugins/docker-buildx
+                        chmod +x $DOCKER_CONFIG/cli-plugins/docker-buildx
+
+                        echo "✅ Docker BuildX v0.17.1 kuruldu"
+
+                        # Versiyonları doğrula
+                        echo "📋 Kurulu versiyonlar:"
                         docker compose version
                         docker buildx version
 
