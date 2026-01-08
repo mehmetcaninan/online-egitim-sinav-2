@@ -15,7 +15,12 @@ public class PerformanceSeleniumTest extends BaseSeleniumTest {
     public void testPageLoadPerformance() {
         System.out.println("🧪 Test 10: Sayfa yükleme performans testi başlatılıyor...");
 
-@@ -16,18 +24,18 @@ public void testPageLoadPerformance() {
+        long startTime = System.currentTimeMillis();
+        navigateToHome();
+        waitForPageLoad();
+        long endTime = System.currentTimeMillis();
+
+        long loadTime = endTime - startTime;
         System.out.println("Ana sayfa yükleme süresi: " + loadTime + "ms");
 
         // Ana sayfa 5 saniyeden az sürede yüklenmeli
@@ -34,7 +39,44 @@ public class PerformanceSeleniumTest extends BaseSeleniumTest {
         }
     }
 
-@@ -72,7 +80,7 @@ public void testMultipleUserLogin() {
+    @Test
+    public void testMultipleUserLogin() {
+        System.out.println("🧪 Test 10b: Çoklu kullanıcı giriş performans testi başlatılıyor...");
+
+        String[] testUsers = {
+            "user1@example.com",
+            "user2@example.com",
+            "user3@example.com"
+        };
+
+        for (String username : testUsers) {
+            long startTime = System.currentTimeMillis();
+
+            navigateToHome();
+            waitForPageLoad();
+
+            try {
+                WebElement loginLink = wait.until(ExpectedConditions.elementToBeClickable(
+                    By.linkText("Giriş Yap")));
+                loginLink.click();
+
+                WebElement usernameField = wait.until(ExpectedConditions.presenceOfElementLocated(
+                    By.name("username")));
+                WebElement passwordField = driver.findElement(By.name("password"));
+
+                usernameField.clear();
+                usernameField.sendKeys(username);
+                passwordField.clear();
+                passwordField.sendKeys("test123");
+
+                WebElement loginButton = driver.findElement(By.xpath("//button[contains(text(),'Giriş')]"));
+                loginButton.click();
+
+                waitForPageLoad();
+
+                long endTime = System.currentTimeMillis();
+                long loginTime = endTime - startTime;
+
                 System.out.println(username + " giriş süresi: " + loginTime + "ms");
 
                 // Her giriş 3 saniyeden az sürmeli
@@ -42,7 +84,30 @@ public class PerformanceSeleniumTest extends BaseSeleniumTest {
 
                 // Çıkış yap (eğer mümkünse)
                 try {
-@@ -103,7 +111,7 @@ public void testDatabaseConnectionPerformance() {
+                    WebElement logoutLink = driver.findElement(By.linkText("Çıkış"));
+                    logoutLink.click();
+                    waitForPageLoad();
+                } catch (Exception e) {
+                    // Çıkış linki bulunamadı, devam et
+                }
+
+            } catch (Exception e) {
+                System.out.println("⚠️ " + username + " için giriş formu bulunamadı");
+                // Test devam etsin
+            }
+        }
+
+        System.out.println("✅ Çoklu kullanıcı performans testi tamamlandı");
+    }
+
+    @Test
+    public void testDatabaseConnectionPerformance() {
+        System.out.println("🧪 Test 10c: Veritabanı bağlantı performans testi başlatılıyor...");
+
+        navigateToHome();
+        waitForPageLoad();
+
+        try {
             // API endpoint'lere istek atarak veritabanı performansını test et
             long startTime = System.currentTimeMillis();
 
@@ -50,7 +115,8 @@ public class PerformanceSeleniumTest extends BaseSeleniumTest {
             waitForPageLoad();
 
             long endTime = System.currentTimeMillis();
-@@ -112,17 +120,17 @@ public void testDatabaseConnectionPerformance() {
+            long responseTime = endTime - startTime;
+
             System.out.println("API yanıt süresi: " + responseTime + "ms");
 
             // API 2 saniyeden az sürede yanıt vermeli
@@ -67,3 +133,4 @@ public class PerformanceSeleniumTest extends BaseSeleniumTest {
             Assert.assertTrue(driver.getTitle().length() > 0);
         }
     }*/
+}
