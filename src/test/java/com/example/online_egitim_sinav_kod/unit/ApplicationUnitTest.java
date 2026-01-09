@@ -10,7 +10,7 @@ import java.time.Instant;
 import java.util.Arrays;
 
 /**
- * Online Eğitim Sınav Sistemi Birim Testle
+ * Online Eğitim Sınav Sistemi Birim Testlejfjfj
  * Gerçek proje bileşenlerini test eder
  */
 public class ApplicationUnitTest {
