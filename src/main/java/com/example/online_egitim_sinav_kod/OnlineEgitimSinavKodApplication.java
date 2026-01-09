@@ -9,7 +9,5 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class OnlineEgitimSinavKodApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(OnlineEgitimSinavKodApplication.class, args);
-        system.out.println("Online Eğitim Sınav Kod Uygulaması Başladı!");
-    }
+        SpringApplication.run(OnlineEgitimSinavKodApplication.class, args);}
 }
